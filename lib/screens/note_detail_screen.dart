@@ -301,40 +301,41 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           child: SafeArea(
             child: Column(
               children: [
-              // App bar
-              _buildAppBar(),
+                // App bar
+                _buildAppBar(),
 
-              // Content
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Tags section
-                      _buildTagsSection(),
+                // Content
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Tags section
+                        _buildTagsSection(),
 
-                      const SizedBox(height: 16),
+                        const SizedBox(height: 16),
 
-                      // Note content
-                      _buildContentSection(),
+                        // Note content
+                        _buildContentSection(),
 
-                      const SizedBox(height: 24),
+                        const SizedBox(height: 24),
 
-                      // Last edited timestamp
-                      if (!_isNewNote)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: Text(
-                            _lastEditedText,
-                            style: AppTypography.caption,
+                        // Last edited timestamp
+                        if (!_isNewNote)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: Text(
+                              _lastEditedText,
+                              style: AppTypography.caption,
+                            ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
