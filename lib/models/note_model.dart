@@ -26,8 +26,8 @@ class NoteModel {
     DateTime? createdAt,
   })  : id = id ?? const Uuid().v4(),
         tags = tags ?? [],
-        lastAccessed = lastAccessed ?? DateTime.now(),
-        createdAt = createdAt ?? DateTime.now();
+        lastAccessed = lastAccessed ?? DateTime.now().toUtc(),
+        createdAt = createdAt ?? DateTime.now().toUtc();
 
   /// Determine category based on last accessed time
   NoteCategory get category {
@@ -53,10 +53,10 @@ class NoteModel {
       tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? [],
       frequencyCount: json['frequency_count'] as int? ?? 0,
       lastAccessed: json['last_accessed'] != null
-          ? DateTime.parse(json['last_accessed'] as String)
+          ? DateTime.parse(json['last_accessed'] as String).toLocal()
           : DateTime.now(),
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'] as String)
+          ? DateTime.parse(json['created_at'] as String).toLocal()
           : DateTime.now(),
     );
   }

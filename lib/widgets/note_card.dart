@@ -18,28 +18,17 @@ class NoteCard extends StatelessWidget {
     this.onDelete,
   });
 
-  /// Get glow color based on note category
-  Color get _glowColor {
-    switch (note.category) {
-      case NoteCategory.daily:
-        return AppColors.warmGlow;
-      case NoteCategory.weekly:
-        return AppColors.coolGlow;
-      case NoteCategory.monthly:
-        return AppColors.softTeal;
-      case NoteCategory.archive:
-        return AppColors.archiveGlow;
-    }
-  }
+  /// Get glow color - consistent lavender for all notes
+  Color get _glowColor => AppColors.softLavender;
 
   /// Get glow intensity based on frequency
   double get _glowIntensity {
-    // More frequently accessed = brighter glow
-    if (note.frequencyCount > 20) return 0.8;
-    if (note.frequencyCount > 10) return 0.6;
-    if (note.frequencyCount > 5) return 0.4;
-    if (note.frequencyCount > 0) return 0.2;
-    return 0.1;
+    // More frequently accessed = subtle brighter glow (reduced for consistency)
+    if (note.frequencyCount > 20) return 0.3;
+    if (note.frequencyCount > 10) return 0.2;
+    if (note.frequencyCount > 5) return 0.15;
+    if (note.frequencyCount > 0) return 0.1;
+    return 0.05;
   }
 
   /// Get formatted time ago string

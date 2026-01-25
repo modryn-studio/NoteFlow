@@ -38,7 +38,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     _note = widget.note;
     _contentController = TextEditingController(text: _note?.content ?? '');
     _tags = List.from(_note?.tags ?? []);
-    _isEditing = _isNewNote;
+    _isEditing = true; // Always start in edit mode
 
     _contentController.addListener(_onContentChanged);
 
@@ -76,6 +76,27 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     setState(() {
       _isEditing = !_isEditing;
     });
+  }
+
+  /// Save note without navigating (for auto-save on back)
+  Future<void> _saveQuietly() async {
+    final content = _contentController.text.trim();
+    if (content.isEmpty) return;
+
+    try {
+      if (_isNewNote) {
+        final tags = TaggingService.instance.autoTag(content);
+        await SupabaseService.instance.createNote(content, tags);
+      } else if (_note != null) {
+        final updatedNote = _note!.copyWith(
+          content: content,
+          tags: _tags,
+        );
+        await SupabaseService.instance.updateNote(updatedNote);
+      }
+    } catch (e) {
+      // Silently ignore save errors on back navigation
+    }
   }
 
   Future<void> _save() async {
@@ -318,12 +339,12 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
               Icons.arrow_back_rounded,
               color: AppColors.pearlWhite,
             ),
-            onPressed: () {
-              if (_hasChanges) {
-                _showUnsavedChangesDialog();
-              } else {
-                Navigator.of(context).pop(false);
+            onPressed: () async {
+              // Auto-save on back navigation if there are changes
+              if (_hasChanges && _contentController.text.trim().isNotEmpty) {
+                await _saveQuietly();
               }
+              if (mounted) Navigator.of(context).pop(_hasChanges);
             },
           ),
 
@@ -509,41 +530,5 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
               ),
             ),
     );
-  }
-
-  void _showUnsavedChangesDialog() async {
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.darkPurple,
-        title: Text('Unsaved Changes', style: AppTypography.heading),
-        content: Text(
-          'You have unsaved changes. What would you like to do?',
-          style: AppTypography.body,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'discard'),
-            child: Text(
-              'Discard',
-              style: AppTypography.body.copyWith(color: AppColors.warmGlow),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'save'),
-            child: Text(
-              'Save',
-              style: AppTypography.body.copyWith(color: AppColors.mintGlow),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (result == 'discard') {
-      if (mounted) Navigator.of(context).pop(false);
-    } else if (result == 'save') {
-      await _save();
-    }
   }
 }

@@ -71,13 +71,18 @@ class _HomeScreenState extends State<HomeScreen> {
     _searchQuery = query;
 
     if (query.isEmpty) {
-      _groupNotes(_notes);
+      // Restore original notes when search is cleared
+      setState(() {
+        _groupNotes(_notes);
+      });
       return;
     }
 
     try {
       final results = await SupabaseService.instance.searchNotes(query);
-      _groupNotes(results);
+      setState(() {
+        _groupNotes(results);
+      });
     } catch (e) {
       _showError('Search failed: $e');
     }
@@ -94,12 +99,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openNote(NoteModel note) async {
-    // Track note open
-    try {
-      await FrequencyTracker.instance.trackNoteOpen(note.id);
-    } catch (e) {
-      // Continue even if tracking fails
-    }
+    // Fire-and-forget frequency tracking (don't block navigation)
+    FrequencyTracker.instance.trackNoteOpen(note.id).ignore();
 
     if (!mounted) return;
 
@@ -243,7 +244,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildNotesList() {
-    if (_notes.isEmpty) {
+    // Check if any notes exist in grouped results
+    final hasAnyNotes = _groupedNotes.values.any((list) => list.isNotEmpty);
+    
+    if (!hasAnyNotes) {
       return _buildEmptyState();
     }
 
@@ -259,7 +263,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildCategorySection(NoteCategory category) {
     final notes = _groupedNotes[category] ?? [];
-    final isCollapsed = _collapsedSections[category] ?? false;
+    // Auto-expand sections during search to show matching results
+    final isCollapsed = _searchQuery.isNotEmpty 
+        ? false 
+        : (_collapsedSections[category] ?? false);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
