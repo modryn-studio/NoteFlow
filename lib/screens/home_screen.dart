@@ -103,8 +103,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openNote(NoteModel note) async {
-    // Fire-and-forget frequency tracking (don't block navigation)
-    FrequencyTracker.instance.trackNoteOpen(note.id).ignore();
+    // Track frequency with error logging (but don't block navigation)
+    FrequencyTracker.instance.trackNoteOpen(note.id).catchError((error) {
+      // ignore: avoid_print
+      print('ERROR: Failed to track note open: $error');
+      return note; // Return original note on error
+    }).ignore();
 
     if (!mounted) return;
 

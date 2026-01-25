@@ -31,8 +31,10 @@ class NoteModel {
 
   /// Determine category based on last accessed time
   NoteCategory get category {
-    final now = DateTime.now();
-    final difference = now.difference(lastAccessed);
+    // Ensure both timestamps are in local time for accurate comparison
+    final now = DateTime.now().toLocal();
+    final lastAccessedLocal = lastAccessed.toLocal();
+    final difference = now.difference(lastAccessedLocal);
 
     if (difference.inHours < 24) {
       return NoteCategory.daily;

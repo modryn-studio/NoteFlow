@@ -33,8 +33,19 @@ class NoteCard extends StatelessWidget {
 
   /// Get formatted time ago string
   String get _timeAgo {
-    final now = DateTime.now();
-    final difference = now.difference(note.lastAccessed);
+    // Ensure both timestamps are in local time for accurate comparison
+    final now = DateTime.now().toLocal();
+    final lastAccessedLocal = note.lastAccessed.toLocal();
+    final difference = now.difference(lastAccessedLocal);
+
+    // Debug logging (TODO: Remove after bug is fixed)
+    if (difference.inHours >= 6) {
+      print('DEBUG: Note "${note.content.substring(0, note.content.length > 20 ? 20 : note.content.length)}..."');
+      print('  Now (local): $now');
+      print('  Last accessed (from model): ${note.lastAccessed}');
+      print('  Last accessed (local): $lastAccessedLocal');
+      print('  Difference: ${difference.inHours}h ${difference.inMinutes % 60}m');
+    }
 
     if (difference.inMinutes < 1) {
       return 'Just now';
