@@ -44,8 +44,9 @@ class FrequencyTracker {
 
   /// Get category for a note based on last accessed time
   NoteCategory getCategoryFromTime(DateTime lastAccessed) {
-    final now = DateTime.now();
-    final difference = now.difference(lastAccessed);
+    final now = DateTime.now().toLocal();
+    final lastAccessedLocal = lastAccessed.toLocal();
+    final difference = now.difference(lastAccessedLocal);
 
     if (difference.inHours < 24) {
       return NoteCategory.daily;
