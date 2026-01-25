@@ -280,14 +280,27 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: AppColors.backgroundGradient,
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+        
+        // Auto-save on system back button/gesture
+        if (_hasChanges && _contentController.text.trim().isNotEmpty) {
+          await _saveQuietly();
+        }
+        if (context.mounted) {
+          Navigator.of(context).pop(_hasChanges);
+        }
+      },
+      child: Scaffold(
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: AppColors.backgroundGradient,
+          ),
+          child: SafeArea(
+            child: Column(
+              children: [
               // App bar
               _buildAppBar(),
 
@@ -325,6 +338,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           ),
         ),
       ),
+    );
     );
   }
 
