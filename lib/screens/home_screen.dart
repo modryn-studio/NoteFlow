@@ -262,14 +262,14 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section header
-        GestureDetector(
+        // Section header - entire row is tappable
+        InkWell(
           onTap: () {
             setState(() {
               _collapsedSections[category] = !isCollapsed;
             });
           },
-          child: Padding(
+          child: Container(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
             child: Row(
               children: [
