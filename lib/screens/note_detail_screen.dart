@@ -273,7 +273,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   String get _lastEditedText {
     if (_note == null) return '';
-    final diff = DateTime.now().difference(_note!.lastAccessed);
+    final now = DateTime.now().toLocal();
+    final lastEditedLocal = _note!.lastEdited.toLocal();
+    final diff = now.difference(lastEditedLocal);
     if (diff.inMinutes < 1) return 'Last edited just now';
     if (diff.inHours < 1) return 'Last edited ${diff.inMinutes}m ago';
     if (diff.inDays < 1) return 'Last edited ${diff.inHours}h ago';

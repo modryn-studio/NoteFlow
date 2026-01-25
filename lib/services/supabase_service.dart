@@ -65,6 +65,7 @@ class SupabaseService {
           'tags': note.tags,
           'frequency_count': note.frequencyCount,
           'last_accessed': note.lastAccessed.toIso8601String(),
+          'last_edited': note.lastEdited.toIso8601String(),
         })
         .eq('id', note.id)
         .eq('user_id', _userId)
