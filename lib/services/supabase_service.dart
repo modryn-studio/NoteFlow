@@ -91,7 +91,7 @@ class SupabaseService {
         .from(_notesTable)
         .update({
           'frequency_count': currentNote.frequencyCount + 1,
-          'last_accessed': DateTime.now().toIso8601String(),
+          'last_accessed': DateTime.now().toUtc().toIso8601String(),
         })
         .eq('id', noteId)
         .eq('user_id', _userId)
