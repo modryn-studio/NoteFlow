@@ -112,11 +112,11 @@ class _GlassSearchBarState extends State<GlassSearchBar> {
                   GestureDetector(
                     onTap: _clearSearch,
                     child: Container(
-                      padding: const EdgeInsets.all(4),
+                      padding: const EdgeInsets.all(12),
                       child: Icon(
                         Icons.close_rounded,
                         color: AppColors.subtleGray,
-                        size: 20,
+                        size: 22,
                       ),
                     ),
                   ),

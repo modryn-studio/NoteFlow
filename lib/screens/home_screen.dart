@@ -44,7 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  Future<void> _loadNotes() async {
+  Future<void> _loadNotes({bool skipGrouping = false}) async {
     setState(() {
       _isLoading = true;
     });
@@ -52,7 +52,11 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final notes = await SupabaseService.instance.fetchNotes();
       _allNotes = notes; // Store original
-      _groupNotes(notes);
+      
+      // Skip grouping if we're going to search immediately after
+      if (!skipGrouping) {
+        _groupNotes(notes);
+      }
     } catch (e) {
       _showError('Failed to load notes: $e');
     } finally {
@@ -111,7 +115,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     // Always refresh to pick up updated lastAccessed timestamp
-    _loadNotes();
+    // Skip grouping if search is active to avoid flicker
+    await _loadNotes(skipGrouping: _searchQuery.isNotEmpty);
+    
+    // Preserve search state: re-apply filter if search is active
+    if (_searchQuery.isNotEmpty) {
+      _searchNotes(_searchQuery);
+    }
   }
 
   void _openVoiceCapture() async {
