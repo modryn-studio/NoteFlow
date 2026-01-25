@@ -41,21 +41,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     _isEditing = true; // Always start in edit mode
 
     _contentController.addListener(_onContentChanged);
-
-    // Track note open if editing existing note
-    if (!_isNewNote && _note != null) {
-      _trackNoteOpen();
-    }
-  }
-
-  void _trackNoteOpen() async {
-    try {
-      if (_note != null) {
-        await FrequencyTracker.instance.trackNoteOpen(_note!.id);
-      }
-    } catch (e) {
-      // Ignore tracking errors
-    }
+    
+    // Note: Frequency tracking is handled in home_screen before navigation
+    // to avoid race conditions with data loading
   }
 
   void _onContentChanged() {
