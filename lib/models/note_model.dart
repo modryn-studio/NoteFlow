@@ -13,7 +13,8 @@ class NoteModel {
   final String content;
   final List<String> tags;
   final int frequencyCount;
-  final DateTime lastAccessed;
+  final DateTime lastAccessed;  // When last opened/viewed
+  final DateTime lastEdited;     // When content last changed
   final DateTime createdAt;
 
   NoteModel({
@@ -23,10 +24,12 @@ class NoteModel {
     List<String>? tags,
     this.frequencyCount = 0,
     DateTime? lastAccessed,
+    DateTime? lastEdited,
     DateTime? createdAt,
   })  : id = id ?? const Uuid().v4(),
         tags = tags ?? [],
         lastAccessed = lastAccessed ?? DateTime.now().toUtc(),
+        lastEdited = lastEdited ?? DateTime.now().toUtc(),
         createdAt = createdAt ?? DateTime.now().toUtc();
 
   /// Determine category based on last accessed time
@@ -57,6 +60,9 @@ class NoteModel {
       lastAccessed: json['last_accessed'] != null
           ? DateTime.parse(json['last_accessed'] as String).toLocal()
           : DateTime.now(),
+      lastEdited: json['last_edited'] != null
+          ? DateTime.parse(json['last_edited'] as String).toLocal()
+          : DateTime.now(),
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String).toLocal()
           : DateTime.now(),
@@ -71,6 +77,7 @@ class NoteModel {
       'tags': tags,
       'frequency_count': frequencyCount,
       'last_accessed': lastAccessed.toIso8601String(),
+      'last_edited': lastEdited.toIso8601String(),
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -83,6 +90,7 @@ class NoteModel {
       'tags': tags,
       'frequency_count': frequencyCount,
       'last_accessed': lastAccessed.toIso8601String(),
+      'last_edited': lastEdited.toIso8601String(),
     };
   }
 
@@ -93,6 +101,7 @@ class NoteModel {
     List<String>? tags,
     int? frequencyCount,
     DateTime? lastAccessed,
+    DateTime? lastEdited,
     DateTime? createdAt,
   }) {
     return NoteModel(
@@ -102,6 +111,7 @@ class NoteModel {
       tags: tags ?? List.from(this.tags),
       frequencyCount: frequencyCount ?? this.frequencyCount,
       lastAccessed: lastAccessed ?? this.lastAccessed,
+      lastEdited: lastEdited ?? this.lastEdited,
       createdAt: createdAt ?? this.createdAt,
     );
   }

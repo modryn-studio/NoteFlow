@@ -32,23 +32,35 @@ class NoteCard extends StatelessWidget {
   }
 
   /// Get formatted time ago string
-  String get _timeAgo {
-    // Ensure both timestamps are in local time for accurate comparison
+  /// Get formatted time ago string for last edited
+  String get _editedTimeAgo {
+    final now = DateTime.now().toLocal();
+    final lastEditedLocal = note.lastEdited.toLocal();
+    final difference = now.difference(lastEditedLocal);
+
+    if (difference.inMinutes < 1) {
+      return 'just now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inDays < 30) {
+      return '${(difference.inDays / 7).floor()}w ago';
+    } else {
+      return '${(difference.inDays / 30).floor()}mo ago';
+    }
+  }
+
+  /// Get formatted time ago string for last viewed
+  String get _viewedTimeAgo {
     final now = DateTime.now().toLocal();
     final lastAccessedLocal = note.lastAccessed.toLocal();
     final difference = now.difference(lastAccessedLocal);
 
-    // Debug logging (TODO: Remove after bug is fixed)
-    if (difference.inHours >= 6) {
-      print('DEBUG: Note "${note.content.substring(0, note.content.length > 20 ? 20 : note.content.length)}..."');
-      print('  Now (local): $now');
-      print('  Last accessed (from model): ${note.lastAccessed}');
-      print('  Last accessed (local): $lastAccessedLocal');
-      print('  Difference: ${difference.inHours}h ${difference.inMinutes % 60}m');
-    }
-
     if (difference.inMinutes < 1) {
-      return 'Just now';
+      return 'just now';
     } else if (difference.inMinutes < 60) {
       return '${difference.inMinutes}m ago';
     } else if (difference.inHours < 24) {
@@ -154,14 +166,26 @@ class NoteCard extends StatelessWidget {
 
             const SizedBox(height: 10),
 
-            // Bottom row with time and frequency
+            // Bottom row with dual timestamps
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  _timeAgo,
-                  style: AppTypography.caption,
+                // Left: Last edited (primary info)
+                Row(
+                  children: [
+                    Icon(
+                      Icons.edit_outlined,
+                      size: 14,
+                      color: AppColors.subtleGray,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _editedTimeAgo,
+                      style: AppTypography.caption,
+                    ),
+                  ],
                 ),
+                // Right: View count + last viewed
                 Row(
                   children: [
                     Icon(
@@ -173,6 +197,13 @@ class NoteCard extends StatelessWidget {
                     Text(
                       '${note.frequencyCount}',
                       style: AppTypography.caption,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '• $_viewedTimeAgo',
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.softLavender.withOpacity(0.8),
+                      ),
                     ),
                   ],
                 ),

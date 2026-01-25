@@ -91,6 +91,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         final updatedNote = _note!.copyWith(
           content: content,
           tags: _tags,
+          lastEdited: DateTime.now().toUtc(),  // Update on content change
         );
         await SupabaseService.instance.updateNote(updatedNote);
       }
@@ -121,6 +122,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         final updatedNote = _note!.copyWith(
           content: content,
           tags: _tags,
+          lastEdited: DateTime.now().toUtc(),  // Update on content change
         );
         await SupabaseService.instance.updateNote(updatedNote);
       }
