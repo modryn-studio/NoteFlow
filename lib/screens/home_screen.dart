@@ -19,7 +19,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
-  List<NoteModel> _notes = [];
+  List<NoteModel> _allNotes = []; // Preserve original notes
   Map<NoteCategory, List<NoteModel>> _groupedNotes = {};
   bool _isLoading = true;
   String _searchQuery = '';
@@ -51,6 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       final notes = await SupabaseService.instance.fetchNotes();
+      _allNotes = notes; // Store original
       _groupNotes(notes);
     } catch (e) {
       _showError('Failed to load notes: $e');
@@ -62,7 +63,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _groupNotes(List<NoteModel> notes) {
-    _notes = notes;
     _groupedNotes = FrequencyTracker.instance.groupNotesByCategory(notes);
     setState(() {});
   }
@@ -73,7 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (query.isEmpty) {
       // Restore original notes when search is cleared
       setState(() {
-        _groupNotes(_notes);
+        _groupNotes(_allNotes);
       });
       return;
     }
@@ -104,16 +104,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (!mounted) return;
 
-    final result = await Navigator.of(context).push<bool>(
+    await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (context) => NoteDetailScreen(note: note),
       ),
     );
 
-    // Refresh notes if there were changes
-    if (result == true) {
-      _loadNotes();
-    }
+    // Always refresh to pick up updated lastAccessed timestamp
+    _loadNotes();
   }
 
   void _openVoiceCapture() async {
@@ -143,13 +141,6 @@ class _HomeScreenState extends State<HomeScreen> {
         SnackBar(
           content: const Text('Note deleted'),
           backgroundColor: AppColors.darkPurple,
-          action: SnackBarAction(
-            label: 'Undo',
-            textColor: AppColors.softLavender,
-            onPressed: () {
-              // TODO: Implement undo
-            },
-          ),
         ),
       );
     } catch (e) {
