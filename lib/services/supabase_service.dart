@@ -56,14 +56,14 @@ class SupabaseService {
     return allNotes.where((note) => note.category == category).toList();
   }
 
-  /// Update a note
+  /// Update a note (content, tags, timestamps only - frequency managed separately)
   Future<NoteModel> updateNote(NoteModel note) async {
     final response = await _client
         .from(_notesTable)
         .update({
           'content': note.content,
           'tags': note.tags,
-          'frequency_count': note.frequencyCount,
+          // Don't update frequency_count here - it's managed by updateFrequency()
           'last_accessed': note.lastAccessed.toIso8601String(),
           'last_edited': note.lastEdited.toIso8601String(),
         })
