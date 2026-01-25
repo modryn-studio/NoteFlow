@@ -88,10 +88,12 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         final tags = TaggingService.instance.autoTag(content);
         await SupabaseService.instance.createNote(content, tags);
       } else if (_note != null) {
+        final now = DateTime.now().toUtc();
         final updatedNote = _note!.copyWith(
           content: content,
           tags: _tags,
-          lastEdited: DateTime.now().toUtc(),  // Update on content change
+          lastEdited: now,     // Content changed
+          lastAccessed: now,   // Viewing while editing
         );
         await SupabaseService.instance.updateNote(updatedNote);
       }
@@ -119,10 +121,12 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         await SupabaseService.instance.createNote(content, tags);
       } else if (_note != null) {
         // Update existing note
+        final now = DateTime.now().toUtc();
         final updatedNote = _note!.copyWith(
           content: content,
           tags: _tags,
-          lastEdited: DateTime.now().toUtc(),  // Update on content change
+          lastEdited: now,     // Content changed
+          lastAccessed: now,   // Viewing while editing
         );
         await SupabaseService.instance.updateNote(updatedNote);
       }
