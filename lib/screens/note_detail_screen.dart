@@ -339,7 +339,6 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         ),
       ),
     );
-    );
   }
 
   Widget _buildAppBar() {
