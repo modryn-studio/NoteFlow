@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_theme.dart';
 import '../services/auth_service.dart';
+import '../services/supabase_service.dart';
 import 'home_screen.dart';
 
 /// Splash screen that handles auto-authentication
@@ -17,6 +18,8 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
   String _statusMessage = 'Initializing...';
+  bool _hasError = false;
+  String? _errorDetails;
 
   @override
   void initState() {
@@ -45,6 +48,12 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _initializeApp() async {
+    setState(() {
+      _hasError = false;
+      _errorDetails = null;
+      _statusMessage = 'Initializing...';
+    });
+
     try {
       // Small delay for splash animation
       await Future.delayed(const Duration(milliseconds: 800));
@@ -76,11 +85,41 @@ class _SplashScreenState extends State<SplashScreen>
           ),
         );
       }
+    } on AuthenticationException catch (e) {
+      // Specific auth error - show friendly message with retry
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+          _statusMessage = 'Authentication failed';
+          _errorDetails = e.message;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _statusMessage = 'Error: ${e.toString()}';
-      });
+      // Generic error - could be network, server, etc.
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+          _statusMessage = 'Connection failed';
+          _errorDetails = _getErrorMessage(e);
+        });
+      }
     }
+  }
+
+  String _getErrorMessage(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+    if (errorString.contains('network') || errorString.contains('socket')) {
+      return 'Please check your internet connection';
+    } else if (errorString.contains('timeout')) {
+      return 'Connection timed out. Please try again.';
+    } else if (errorString.contains('auth')) {
+      return 'Authentication failed. Please try again.';
+    }
+    return 'Something went wrong. Please try again.';
+  }
+
+  void _retry() {
+    _initializeApp();
   }
 
   @override
@@ -156,24 +195,84 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                       const SizedBox(height: 48),
 
-                      // Loading indicator
-                      SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            AppColors.softLavender.withOpacity(0.8),
+                      // Loading indicator or error icon
+                      if (_hasError)
+                        Icon(
+                          Icons.cloud_off_rounded,
+                          size: 32,
+                          color: AppColors.warmGlow.withOpacity(0.8),
+                        )
+                      else
+                        SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppColors.softLavender.withOpacity(0.8),
+                            ),
                           ),
                         ),
-                      ),
                       const SizedBox(height: 16),
 
                       // Status message
                       Text(
                         _statusMessage,
-                        style: AppTypography.caption,
+                        style: AppTypography.caption.copyWith(
+                          color: _hasError ? AppColors.warmGlow : null,
+                        ),
                       ),
+
+                      // Error details
+                      if (_hasError && _errorDetails != null) ...[
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 48),
+                          child: Text(
+                            _errorDetails!,
+                            style: AppTypography.caption.copyWith(
+                              fontSize: 12,
+                              color: AppColors.subtleGray,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        // Retry button
+                        GestureDetector(
+                          onTap: _retry,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.softLavender.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: AppColors.softLavender.withOpacity(0.5),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.refresh_rounded,
+                                  size: 18,
+                                  color: AppColors.softLavender,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Retry',
+                                  style: AppTypography.body.copyWith(
+                                    color: AppColors.softLavender,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

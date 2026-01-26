@@ -103,6 +103,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openNote(NoteModel note) async {
+    // Capture search query before async operation to detect changes
+    final searchQueryBeforeNav = _searchQuery;
+    
     // Track frequency - no longer fire-and-forget to avoid race condition
     // This ensures database is updated before we reload notes
     try {
@@ -121,13 +124,20 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
+    if (!mounted) return;
+    
+    // Check if search query changed during navigation
+    final searchQueryAfterNav = _searchQuery;
+    
     // Always refresh to pick up updated lastAccessed timestamp
     // Skip grouping if search is active to avoid flicker
-    await _loadNotes(skipGrouping: _searchQuery.isNotEmpty);
+    await _loadNotes(skipGrouping: searchQueryAfterNav.isNotEmpty);
     
-    // Preserve search state: re-apply filter if search is active
-    if (_searchQuery.isNotEmpty) {
-      _searchNotes(_searchQuery);
+    if (!mounted) return;
+    
+    // Only re-apply search if query hasn't changed during async operations
+    if (searchQueryAfterNav.isNotEmpty && searchQueryBeforeNav == searchQueryAfterNav) {
+      _searchNotes(searchQueryAfterNav);
     }
   }
 

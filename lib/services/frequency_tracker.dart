@@ -29,17 +29,15 @@ class FrequencyTracker {
   }
 
   /// Track note open - updates both local and remote
+  /// Returns updated note on success, throws on failure
+  /// Local tracking is always updated, even if remote fails
   Future<NoteModel> trackNoteOpen(String noteId) async {
-    // Update local tracking
+    // Update local tracking (always succeeds)
     await incrementLocalFrequency(noteId);
 
-    // Update remote (Supabase)
-    try {
-      return await SupabaseService.instance.updateFrequency(noteId);
-    } catch (e) {
-      // If remote update fails, just return a note with updated local data
-      rethrow;
-    }
+    // Update remote (Supabase) - may fail on network issues
+    // Caller should handle errors gracefully
+    return await SupabaseService.instance.updateFrequency(noteId);
   }
 
   /// Get category for a note based on last accessed time

@@ -1,10 +1,8 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../core/theme/app_theme.dart';
 import '../models/note_model.dart';
 import '../services/supabase_service.dart';
 import '../services/tagging_service.dart';
-import '../services/frequency_tracker.dart';
 import '../widgets/tag_chip.dart';
 import '../widgets/glass_card.dart';
 
@@ -68,8 +66,15 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   /// Save note without navigating (for auto-save on back)
   Future<void> _saveQuietly() async {
+    // Prevent concurrent saves
+    if (_isSaving) return;
+    
     final content = _contentController.text.trim();
     if (content.isEmpty) return;
+
+    setState(() {
+      _isSaving = true;
+    });
 
     try {
       if (_isNewNote) {
@@ -87,6 +92,12 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       }
     } catch (e) {
       // Silently ignore save errors on back navigation
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
     }
   }
 
@@ -277,17 +288,17 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false,
-      onPopInvoked: (didPop) async {
-        if (didPop) return;
-        
-        // Auto-save on system back button/gesture
-        if (_hasChanges && _contentController.text.trim().isNotEmpty) {
-          await _saveQuietly();
+      canPop: !_isSaving, // Allow pop unless actively saving
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) {
+          // Already popped, handle auto-save
+          if (_hasChanges && _contentController.text.trim().isNotEmpty) {
+            // Fire and forget - screen is already closing
+            _saveQuietly();
+          }
+          return;
         }
-        if (context.mounted) {
-          Navigator.of(context).pop(_hasChanges);
-        }
+        // Blocked due to saving in progress - do nothing
       },
       child: Scaffold(
         body: Container(

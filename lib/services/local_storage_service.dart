@@ -95,4 +95,10 @@ class LocalStorageService {
 
   /// Get stored user ID
   String? get storedUserId => getString(keyUserId);
+
+  /// Close all Hive boxes and cleanup resources
+  /// Should be called when app is terminating
+  Future<void> dispose() async {
+    await Hive.close();
+  }
 }
