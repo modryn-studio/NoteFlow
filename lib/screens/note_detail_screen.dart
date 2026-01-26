@@ -288,17 +288,19 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: !_isSaving, // Allow pop unless actively saving
+      canPop: false, // Intercept all pops to handle save properly
       onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) {
-          // Already popped, handle auto-save
-          if (_hasChanges && _contentController.text.trim().isNotEmpty) {
-            // Fire and forget - screen is already closing
-            _saveQuietly();
-          }
-          return;
+        if (didPop) return; // Already handled
+        
+        // Save if there are changes
+        if (_hasChanges && _contentController.text.trim().isNotEmpty) {
+          await _saveQuietly();
         }
-        // Blocked due to saving in progress - do nothing
+        
+        // Now pop with result
+        if (context.mounted) {
+          Navigator.of(context).pop(_hasChanges);
+        }
       },
       child: Scaffold(
         body: Container(
@@ -360,12 +362,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
               Icons.arrow_back_rounded,
               color: AppColors.pearlWhite,
             ),
-            onPressed: () async {
-              // Auto-save on back navigation if there are changes
-              if (_hasChanges && _contentController.text.trim().isNotEmpty) {
-                await _saveQuietly();
-              }
-              if (mounted) Navigator.of(context).pop(_hasChanges);
+            onPressed: () {
+              // Trigger PopScope to handle save and navigation
+              Navigator.of(context).maybePop();
             },
           ),
 
