@@ -10,6 +10,7 @@ enum NoteCategory {
 class NoteModel {
   final String id;
   final String userId;
+  final String? title;  // Optional custom title
   final String content;
   final List<String> tags;
   final int frequencyCount;
@@ -20,6 +21,7 @@ class NoteModel {
   NoteModel({
     String? id,
     required this.userId,
+    this.title,
     required this.content,
     List<String>? tags,
     this.frequencyCount = 0,
@@ -49,8 +51,16 @@ class NoteModel {
     'shopping': '🛒',
   };
 
-  /// Auto-generated display title from first line of content (max 30 chars)
+  /// Auto-generated display title from custom title or first line of content (max 30 chars)
   String get displayTitle {
+    // Use custom title if provided
+    if (title != null && title!.isNotEmpty) {
+      return title!.length > 30 
+          ? '${title!.substring(0, 30)}...' 
+          : title!;
+    }
+    
+    // Fall back to first line of content
     if (content.isEmpty) return 'Untitled';
     final firstLine = content.split('\n').first.trim();
     if (firstLine.isEmpty) return 'Untitled';
@@ -62,29 +72,29 @@ class NoteModel {
   /// Full display title with emoji prefix
   String get displayTitleWithEmoji => '$emojiPrefix $displayTitle';
 
-  /// Check if note is new (created < 24h ago AND never edited)
+  /// Check if note is new (created < 12h ago AND never edited)
   bool get isNew {
     final now = DateTime.now().toLocal();
     final createdAtLocal = createdAt.toLocal();
     final lastEditedLocal = lastEdited.toLocal();
     final hoursSinceCreated = now.difference(createdAtLocal).inHours;
     
-    // Note is NEW if: created < 24h ago AND lastEdited equals createdAt (never edited)
+    // Note is NEW if: created < 12h ago AND lastEdited equals createdAt (never edited)
     // We use a small tolerance (1 second) for timestamp comparison
     final neverEdited = lastEditedLocal.difference(createdAtLocal).inSeconds.abs() < 2;
-    return hoursSinceCreated < 24 && neverEdited;
+    return hoursSinceCreated < 12 && neverEdited;
   }
 
-  /// Check if note was recently updated (edited < 24h ago AND has been edited before)
+  /// Check if note was recently updated (edited < 12h ago AND has been edited before)
   bool get isRecentlyUpdated {
     final now = DateTime.now().toLocal();
     final createdAtLocal = createdAt.toLocal();
     final lastEditedLocal = lastEdited.toLocal();
     final hoursSinceEdited = now.difference(lastEditedLocal).inHours;
     
-    // Note is UPDATED if: edited < 24h ago AND lastEdited differs from createdAt
+    // Note is UPDATED if: edited < 12h ago AND lastEdited differs from createdAt
     final hasBeenEdited = lastEditedLocal.difference(createdAtLocal).inSeconds.abs() >= 2;
-    return hoursSinceEdited < 24 && hasBeenEdited;
+    return hoursSinceEdited < 12 && hasBeenEdited;
   }
 
   /// Determine category based on last accessed time
@@ -109,6 +119,7 @@ class NoteModel {
     return NoteModel(
       id: json['id'] as String,
       userId: json['user_id'] as String,
+      title: json['title'] as String?,
       content: json['content'] as String,
       tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? [],
       frequencyCount: json['frequency_count'] as int? ?? 0,
@@ -128,6 +139,7 @@ class NoteModel {
     return {
       'id': id,
       'user_id': userId,
+      'title': title,
       'content': content,
       'tags': tags,
       'frequency_count': frequencyCount,
@@ -141,6 +153,7 @@ class NoteModel {
   Map<String, dynamic> toInsertJson() {
     return {
       'user_id': userId,
+      'title': title,
       'content': content,
       'tags': tags,
       'frequency_count': frequencyCount,
@@ -152,6 +165,7 @@ class NoteModel {
   NoteModel copyWith({
     String? id,
     String? userId,
+    String? title,
     String? content,
     List<String>? tags,
     int? frequencyCount,
@@ -162,6 +176,7 @@ class NoteModel {
     return NoteModel(
       id: id ?? this.id,
       userId: userId ?? this.userId,
+      title: title ?? this.title,
       content: content ?? this.content,
       tags: tags ?? List.from(this.tags),
       frequencyCount: frequencyCount ?? this.frequencyCount,

@@ -142,8 +142,8 @@ class _VoiceCaptureScreenState extends State<VoiceCaptureScreen>
       // Auto-tag the content
       final tags = TaggingService.instance.autoTag(content);
 
-      // Save to Supabase
-      await SupabaseService.instance.createNote(content, tags);
+      // Save to Supabase (no title for voice notes)
+      await SupabaseService.instance.createNote(null, content, tags);
 
       if (mounted) {
         Navigator.of(context).pop(true);

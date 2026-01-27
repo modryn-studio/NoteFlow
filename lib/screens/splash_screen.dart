@@ -55,8 +55,8 @@ class _SplashScreenState extends State<SplashScreen>
     });
 
     try {
-      // Small delay for splash animation
-      await Future.delayed(const Duration(milliseconds: 800));
+      // Minimal delay for splash animation (just enough to see branding)
+      await Future.delayed(const Duration(milliseconds: 300));
 
       setState(() {
         _statusMessage = 'Signing in...';
@@ -69,8 +69,8 @@ class _SplashScreenState extends State<SplashScreen>
         _statusMessage = 'Loading notes...';
       });
 
-      await Future.delayed(const Duration(milliseconds: 400));
-
+      // No artificial delay - go straight to home
+      
       // Navigate to home screen
       if (mounted) {
         Navigator.of(context).pushReplacement(

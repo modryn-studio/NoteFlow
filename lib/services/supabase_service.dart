@@ -27,6 +27,10 @@ class SupabaseService {
   
   /// Maximum retry attempts for failed operations
   static const int _maxRetries = 3;
+  
+  /// In-memory cache for notes (reduces unnecessary fetches)
+  List<NoteModel>? _cachedNotes;
+  DateTime? _cacheTime;
 
   String get _userId {
     final userId = AuthService.instance.currentUserId;
@@ -72,10 +76,11 @@ class SupabaseService {
   }
 
   /// Create a new note
-  Future<NoteModel> createNote(String content, List<String> tags) async {
-    return _withRetry(() async {
+  Future<NoteModel> createNote(String? title, String content, List<String> tags) async {
+    final result = await _withRetry(() async {
       final note = NoteModel(
         userId: _userId,
+        title: title,
         content: content,
         tags: tags,
       );
@@ -88,10 +93,21 @@ class SupabaseService {
 
       return NoteModel.fromJson(response);
     });
+    
+    _invalidateCache();
+    return result;
   }
 
   /// Fetch all notes for current user
-  Future<List<NoteModel>> fetchNotes() async {
+  Future<List<NoteModel>> fetchNotes({bool forceRefresh = false}) async {
+    // Return cached notes if available and fresh (within 30 seconds)
+    if (!forceRefresh && 
+        _cachedNotes != null && 
+        _cacheTime != null &&
+        DateTime.now().difference(_cacheTime!) < const Duration(seconds: 30)) {
+      return _cachedNotes!;
+    }
+    
     return _withRetry(() async {
       final response = await _client
           .from(_notesTable)
@@ -99,10 +115,22 @@ class SupabaseService {
           .eq('user_id', _userId)
           .order('last_accessed', ascending: false);
 
-      return (response as List<dynamic>)
+      final notes = (response as List<dynamic>)
           .map((json) => NoteModel.fromJson(json as Map<String, dynamic>))
           .toList();
+      
+      // Cache the results
+      _cachedNotes = notes;
+      _cacheTime = DateTime.now();
+      
+      return notes;
     });
+  }
+  
+  /// Invalidate the cache (call after create/update/delete)
+  void _invalidateCache() {
+    _cachedNotes = null;
+    _cacheTime = null;
   }
 
   /// Fetch notes by category
@@ -113,10 +141,11 @@ class SupabaseService {
 
   /// Update a note (content, tags, timestamps only - frequency managed separately)
   Future<NoteModel> updateNote(NoteModel note) async {
-    return _withRetry(() async {
+    final result = await _withRetry(() async {
       final response = await _client
           .from(_notesTable)
           .update({
+            'title': note.title,
             'content': note.content,
             'tags': note.tags,
             // Don't update frequency_count here - it's managed by updateFrequency()
@@ -130,6 +159,9 @@ class SupabaseService {
 
       return NoteModel.fromJson(response);
     });
+    
+    _invalidateCache();
+    return result;
   }
 
   /// Update frequency count and last accessed
@@ -163,13 +195,15 @@ class SupabaseService {
 
   /// Delete a note
   Future<void> deleteNote(String noteId) async {
-    return _withRetry(() async {
+    await _withRetry(() async {
       await _client
           .from(_notesTable)
           .delete()
           .eq('id', noteId)
           .eq('user_id', _userId);
     });
+    
+    _invalidateCache();
   }
 
   /// Batch delete notes with progress callback

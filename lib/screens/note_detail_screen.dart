@@ -23,6 +23,7 @@ class NoteDetailScreen extends StatefulWidget {
 }
 
 class _NoteDetailScreenState extends State<NoteDetailScreen> {
+  late TextEditingController _titleController;
   late TextEditingController _contentController;
   late List<String> _tags;
   late List<String> _originalTags; // Track original tags for analytics
@@ -38,11 +39,13 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   void initState() {
     super.initState();
     _note = widget.note;
+    _titleController = TextEditingController(text: _note?.title ?? '');
     _contentController = TextEditingController(text: _note?.content ?? '');
     _tags = List.from(_note?.tags ?? []);
     _originalTags = List.from(_note?.tags ?? []); // Store original for analytics
     _isEditing = true; // Always start in edit mode
 
+    _titleController.addListener(_onContentChanged);
     _contentController.addListener(_onContentChanged);
     
     // Note: Frequency tracking is handled in home_screen before navigation
@@ -59,6 +62,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   @override
   void dispose() {
+    _titleController.dispose();
     _contentController.dispose();
     super.dispose();
   }
@@ -75,6 +79,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     if (_isSaving) return;
     
     final content = _contentController.text.trim();
+    final title = _titleController.text.trim();
     if (content.isEmpty) return;
 
     setState(() {
@@ -84,13 +89,18 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     try {
       if (_isNewNote) {
         final tags = TaggingService.instance.autoTag(content);
-        await SupabaseService.instance.createNote(content, tags);
+        await SupabaseService.instance.createNote(
+          title.isEmpty ? null : title,
+          content,
+          tags,
+        );
       } else if (_note != null) {
         // Log tag corrections before saving (existing notes only)
         await _logTagCorrections();
         
         final now = DateTime.now().toUtc();
         final updatedNote = _note!.copyWith(
+          title: title.isEmpty ? null : title,
           content: content,
           tags: _tags,
           lastEdited: now,     // Content changed
@@ -111,6 +121,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
   Future<void> _save() async {
     final content = _contentController.text.trim();
+    final title = _titleController.text.trim();
 
     if (content.isEmpty) {
       _showError('Note cannot be empty');
@@ -125,7 +136,11 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       if (_isNewNote) {
         // Auto-tag new note
         final tags = TaggingService.instance.autoTag(content);
-        await SupabaseService.instance.createNote(content, tags);
+        await SupabaseService.instance.createNote(
+          title.isEmpty ? null : title,
+          content,
+          tags,
+        );
       } else if (_note != null) {
         // Log tag corrections before saving (existing notes only)
         await _logTagCorrections();
@@ -358,6 +373,11 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Title field
+                        _buildTitleSection(),
+                        
+                        const SizedBox(height: 16),
+                        
                         // Tags section
                         _buildTagsSection(),
 
@@ -456,6 +476,30 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                   ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildTitleSection() {
+    return GlassCard(
+      margin: EdgeInsets.zero,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: TextField(
+        controller: _titleController,
+        style: AppTypography.heading.copyWith(fontSize: 20),
+        cursorColor: AppColors.softLavender,
+        decoration: InputDecoration(
+          hintText: 'Title (optional)',
+          hintStyle: AppTypography.heading.copyWith(
+            fontSize: 20,
+            color: AppColors.subtleGray.withValues(alpha: 0.5),
+          ),
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: EdgeInsets.zero,
+        ),
+        textCapitalization: TextCapitalization.sentences,
+        maxLines: 1,
       ),
     );
   }
@@ -693,7 +737,11 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     
     try {
       if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
+        // Use external application for mailto, tel, and http links
+        await launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
       } else {
         if (mounted) {
           _showError('Could not open ${entity.actionLabel.toLowerCase()}');
