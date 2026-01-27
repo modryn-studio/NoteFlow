@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 
 import 'core/config/supabase_config.dart';
 import 'core/theme/app_theme.dart';
@@ -20,20 +19,19 @@ void main() async {
   ]);
 
   // Set system UI overlay style for dark theme
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
-    systemNavigationBarColor: AppColors.deepIndigo,
-    systemNavigationBarIconBrightness: Brightness.light,
-  ));
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: AppColors.deepIndigo,
+      systemNavigationBarIconBrightness: Brightness.light,
+    ),
+  );
 
   // Load environment variables
   await dotenv.load(fileName: '.env');
 
-  // Initialize Hive for local storage
-  await Hive.initFlutter();
-
-  // Initialize local storage service
+  // Initialize local storage service (also initializes Hive)
   await LocalStorageService.instance.initialize();
 
   // Initialize frequency tracker

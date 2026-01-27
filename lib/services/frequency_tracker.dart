@@ -41,25 +41,22 @@ class FrequencyTracker {
   }
 
   /// Get category for a note based on last accessed time
+  /// Delegates to NoteModel.category to avoid duplicate logic
   NoteCategory getCategoryFromTime(DateTime lastAccessed) {
-    final now = DateTime.now().toLocal();
-    final lastAccessedLocal = lastAccessed.toLocal();
-    final difference = now.difference(lastAccessedLocal);
-
-    if (difference.inHours < 24) {
-      return NoteCategory.daily;
-    } else if (difference.inDays < 7) {
-      return NoteCategory.weekly;
-    } else if (difference.inDays < 30) {
-      return NoteCategory.monthly;
-    } else {
-      return NoteCategory.archive;
-    }
+    // Create a temporary note to use the canonical category calculation
+    // This ensures consistent behavior with NoteModel.category getter
+    final tempNote = NoteModel(
+      userId: '',
+      content: '',
+      lastAccessed: lastAccessed,
+    );
+    return tempNote.category;
   }
 
   /// Group notes by category
   Map<NoteCategory, List<NoteModel>> groupNotesByCategory(
-      List<NoteModel> notes) {
+    List<NoteModel> notes,
+  ) {
     final grouped = <NoteCategory, List<NoteModel>>{
       NoteCategory.daily: [],
       NoteCategory.weekly: [],
@@ -73,8 +70,9 @@ class FrequencyTracker {
 
     // Sort each category by frequency count (most accessed first)
     for (final category in grouped.keys) {
-      grouped[category]!
-          .sort((a, b) => b.frequencyCount.compareTo(a.frequencyCount));
+      grouped[category]!.sort(
+        (a, b) => b.frequencyCount.compareTo(a.frequencyCount),
+      );
     }
 
     return grouped;
@@ -122,5 +120,11 @@ class FrequencyTracker {
         // This would be used for offline-first scenarios
       }
     }
+  }
+
+  /// Dispose resources and close Hive box
+  Future<void> dispose() async {
+    await _box?.close();
+    _box = null;
   }
 }

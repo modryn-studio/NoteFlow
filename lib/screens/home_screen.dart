@@ -23,7 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<NoteCategory, List<NoteModel>> _groupedNotes = {};
   bool _isLoading = true;
   String _searchQuery = '';
-  
+
   // Multi-select mode state
   bool _isSelectionMode = false;
   final Set<String> _selectedNoteIds = {};
@@ -47,7 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _searchController.dispose();
     super.dispose();
   }
-  
+
   /// Enter selection mode
   void _enterSelectionMode(NoteModel note) {
     setState(() {
@@ -55,7 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _selectedNoteIds.add(note.id);
     });
   }
-  
+
   /// Exit selection mode
   void _exitSelectionMode() {
     setState(() {
@@ -63,7 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _selectedNoteIds.clear();
     });
   }
-  
+
   /// Toggle note selection
   void _toggleNoteSelection(NoteModel note) {
     setState(() {
@@ -78,7 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
   }
-  
+
   /// Select all visible notes
   void _selectAllNotes() {
     setState(() {
@@ -93,15 +93,18 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Batch delete selected notes with progress dialog
   Future<void> _batchDeleteSelected() async {
     if (_selectedNoteIds.isEmpty) return;
-    
+
     final selectedCount = _selectedNoteIds.length;
-    
+
     // Confirm deletion
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.darkPurple,
-        title: Text('Delete $selectedCount Notes', style: AppTypography.heading),
+        title: Text(
+          'Delete $selectedCount Notes',
+          style: AppTypography.heading,
+        ),
         content: Text(
           'Are you sure you want to delete $selectedCount selected notes? This cannot be undone.',
           style: AppTypography.body,
@@ -109,29 +112,42 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: AppTypography.body.copyWith(color: AppColors.subtleGray)),
+            child: Text(
+              'Cancel',
+              style: AppTypography.body.copyWith(color: AppColors.subtleGray),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text('Delete', style: AppTypography.body.copyWith(color: AppColors.warmGlow)),
+            child: Text(
+              'Delete',
+              style: AppTypography.body.copyWith(color: AppColors.warmGlow),
+            ),
           ),
         ],
       ),
     );
 
     if (confirm != true) return;
-    
-    // Store selected IDs before clearing
+
+    // Store selected IDs and cache notes BEFORE deletion for potential rollback
     final idsToDelete = _selectedNoteIds.toList();
-    
-    // Show progress dialog
-    int currentProgress = 0;
-    
+    final notesBackup = _allNotes
+        .where((note) => idsToDelete.contains(note.id))
+        .toList();
+
+    // Create a ValueNotifier to update dialog progress
+    final progressNotifier = ValueNotifier<int>(0);
+
+    // Capture navigator before async gap
+    final navigator = Navigator.of(context);
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
+      builder: (context) => ValueListenableBuilder<int>(
+        valueListenable: progressNotifier,
+        builder: (context, progress, _) {
           return AlertDialog(
             backgroundColor: AppColors.darkPurple,
             title: Text('Deleting Notes', style: AppTypography.heading),
@@ -139,13 +155,13 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 LinearProgressIndicator(
-                  value: selectedCount > 0 ? currentProgress / selectedCount : 0,
+                  value: selectedCount > 0 ? progress / selectedCount : 0,
                   backgroundColor: AppColors.glassTint,
                   color: AppColors.softLavender,
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Deleting $currentProgress of $selectedCount...',
+                  'Deleting $progress of $selectedCount...',
                   style: AppTypography.body,
                 ),
               ],
@@ -167,29 +183,27 @@ class _HomeScreenState extends State<HomeScreen> {
       final failedIds = await SupabaseService.instance.batchDeleteNotes(
         idsToDelete,
         onProgress: (current, total) {
-          currentProgress = current;
-          // Update dialog if still mounted
-          if (mounted) {
-            setState(() {}); // Trigger rebuild
-          }
+          progressNotifier.value = current;
         },
       );
 
       // Close progress dialog
       if (mounted) {
-        Navigator.of(context).pop();
+        navigator.pop();
       }
+
+      // Dispose the progress notifier
+      progressNotifier.dispose();
 
       // Show result
       if (failedIds.isEmpty) {
         _showSuccess('$selectedCount notes deleted');
       } else {
-        // Rollback failed notes
-        final failedNotes = idsToDelete
-            .where((id) => failedIds.contains(id))
-            .map((id) => _allNotes.firstWhere((n) => n.id == id, orElse: () => throw Exception()))
+        // Rollback failed notes using the cached backup
+        final failedNotes = notesBackup
+            .where((note) => failedIds.contains(note.id))
             .toList();
-        
+
         // Re-add failed notes to local state
         if (failedNotes.isNotEmpty) {
           setState(() {
@@ -197,17 +211,20 @@ class _HomeScreenState extends State<HomeScreen> {
             _groupNotes(_allNotes);
           });
         }
-        
+
         _showError('Failed to delete ${failedIds.length} notes');
       }
     } catch (e) {
+      // Dispose the progress notifier
+      progressNotifier.dispose();
+
       // Close progress dialog
       if (mounted) {
-        Navigator.of(context).pop();
+        navigator.pop();
       }
-      
+
       _showError('Delete failed: $e');
-      
+
       // Reload notes to restore state
       await _loadNotes();
     }
@@ -231,7 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final notes = await SupabaseService.instance.fetchNotes();
       _allNotes = notes; // Store original
-      
+
       // Skip grouping if we're going to search immediately after
       if (!skipGrouping) {
         _groupNotes(notes);
@@ -274,17 +291,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showError(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.warmGlow,
-      ),
+      SnackBar(content: Text(message), backgroundColor: AppColors.warmGlow),
     );
   }
 
   void _openNote(NoteModel note) async {
     // Capture search query before async operation to detect changes
     final searchQueryBeforeNav = _searchQuery;
-    
+
     // Track frequency - no longer fire-and-forget to avoid race condition
     // This ensures database is updated before we reload notes
     try {
@@ -298,24 +312,23 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
 
     await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (context) => NoteDetailScreen(note: note),
-      ),
+      MaterialPageRoute(builder: (context) => NoteDetailScreen(note: note)),
     );
 
     if (!mounted) return;
-    
+
     // Check if search query changed during navigation
     final searchQueryAfterNav = _searchQuery;
-    
+
     // Always refresh to pick up updated lastAccessed timestamp
     // Skip grouping if search is active to avoid flicker
     await _loadNotes(skipGrouping: searchQueryAfterNav.isNotEmpty);
-    
+
     if (!mounted) return;
-    
+
     // Only re-apply search if query hasn't changed during async operations
-    if (searchQueryAfterNav.isNotEmpty && searchQueryBeforeNav == searchQueryAfterNav) {
+    if (searchQueryAfterNav.isNotEmpty &&
+        searchQueryBeforeNav == searchQueryAfterNav) {
       _searchNotes(searchQueryAfterNav);
     }
   }
@@ -381,9 +394,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
-          gradient: AppColors.backgroundGradient,
-        ),
+        decoration: BoxDecoration(gradient: AppColors.backgroundGradient),
         child: SafeArea(
           child: Column(
             children: [
@@ -441,8 +452,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       // Selection mode floating action bar
       bottomNavigationBar: _isSelectionMode ? _buildSelectionActionBar() : null,
-      floatingActionButton: _isSelectionMode 
-          ? null 
+      floatingActionButton: _isSelectionMode
+          ? null
           : FloatingActionButton(
               onPressed: _openVoiceCapture,
               backgroundColor: AppColors.softLavender,
@@ -481,12 +492,10 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               label: Text(
                 'Cancel',
-                style: AppTypography.body.copyWith(
-                  color: AppColors.subtleGray,
-                ),
+                style: AppTypography.body.copyWith(color: AppColors.subtleGray),
               ),
             ),
-            
+
             // Select All button
             TextButton.icon(
               onPressed: _selectAllNotes,
@@ -501,20 +510,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            
+
             // Delete button
             TextButton.icon(
               onPressed: _selectedNoteIds.isEmpty ? null : _batchDeleteSelected,
               icon: Icon(
                 Icons.delete_outline_rounded,
-                color: _selectedNoteIds.isEmpty 
+                color: _selectedNoteIds.isEmpty
                     ? AppColors.subtleGray.withValues(alpha: 0.5)
                     : AppColors.warmGlow,
               ),
               label: Text(
                 'Delete (${_selectedNoteIds.length})',
                 style: AppTypography.body.copyWith(
-                  color: _selectedNoteIds.isEmpty 
+                  color: _selectedNoteIds.isEmpty
                       ? AppColors.subtleGray.withValues(alpha: 0.5)
                       : AppColors.warmGlow,
                 ),
@@ -529,7 +538,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildNotesList() {
     // Check if any notes exist in grouped results
     final hasAnyNotes = _groupedNotes.values.any((list) => list.isNotEmpty);
-    
+
     if (!hasAnyNotes) {
       return _buildEmptyState();
     }
@@ -547,8 +556,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildCategorySection(NoteCategory category) {
     final notes = _groupedNotes[category] ?? [];
     // Auto-expand sections during search to show matching results
-    final isCollapsed = _searchQuery.isNotEmpty 
-        ? false 
+    final isCollapsed = _searchQuery.isNotEmpty
+        ? false
         : (_collapsedSections[category] ?? false);
 
     return Column(
@@ -580,10 +589,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(width: 8),
 
                 // Note count
-                Text(
-                  '(${notes.length})',
-                  style: AppTypography.caption,
-                ),
+                Text('(${notes.length})', style: AppTypography.caption),
 
                 const Spacer(),
 
@@ -608,18 +614,18 @@ class _HomeScreenState extends State<HomeScreen> {
             return NoteCard(
               key: ValueKey(note.id),
               note: note,
-              onTap: _isSelectionMode 
+              onTap: _isSelectionMode
                   ? () => _toggleNoteSelection(note)
                   : () => _openNote(note),
-              onLongPress: _isSelectionMode 
-                  ? null 
+              onLongPress: _isSelectionMode
+                  ? null
                   : () => _enterSelectionMode(note),
               onDelete: _isSelectionMode ? null : () => _deleteNote(note),
               isSelectionMode: _isSelectionMode,
               isSelected: _selectedNoteIds.contains(note.id),
               onSelectionToggle: () => _toggleNoteSelection(note),
             );
-          }).toList(),
+          }),
       ],
     );
   }
@@ -639,10 +645,7 @@ class _HomeScreenState extends State<HomeScreen> {
             shape: BoxShape.circle,
             color: color,
             boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.5),
-                blurRadius: 4,
-              ),
+              BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 4),
             ],
           ),
         );

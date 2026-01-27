@@ -2,11 +2,7 @@ import 'package:phone_numbers_parser/phone_numbers_parser.dart';
 import 'package:email_validator/email_validator.dart';
 
 /// Types of entities that can be detected in note content
-enum EntityType {
-  phone,
-  email,
-  url,
-}
+enum EntityType { phone, email, url }
 
 /// Represents a detected entity with its value and type
 class DetectedEntity {
@@ -54,8 +50,9 @@ class DetectedEntity {
 /// Service for detecting actionable entities in text content
 class EntityDetectionService {
   static EntityDetectionService? _instance;
-  static EntityDetectionService get instance => _instance ??= EntityDetectionService._();
-  
+  static EntityDetectionService get instance =>
+      _instance ??= EntityDetectionService._();
+
   EntityDetectionService._();
 
   /// URL regex pattern - matches http, https, and www URLs
@@ -81,13 +78,13 @@ class EntityDetectionService {
     if (content.isEmpty) return [];
 
     final entities = <DetectedEntity>[];
-    
+
     // Detect phone numbers with validation
     entities.addAll(_detectPhoneNumbers(content));
-    
+
     // Detect emails with validation
     entities.addAll(_detectEmails(content));
-    
+
     // Detect URLs
     entities.addAll(_detectUrls(content));
 
@@ -103,20 +100,22 @@ class EntityDetectionService {
 
     for (final match in matches) {
       final rawPhone = match.group(0)!;
-      
+
       // Use phone_numbers_parser for validation
       if (_isValidPhoneNumber(rawPhone)) {
         // Clean phone number for URI
         final cleanPhone = rawPhone.replaceAll(RegExp(r'[^\d+]'), '');
-        
-        entities.add(DetectedEntity(
-          type: EntityType.phone,
-          value: rawPhone,
-          displayValue: _formatPhoneForDisplay(rawPhone),
-          actionUri: 'tel:$cleanPhone',
-          startIndex: match.start,
-          endIndex: match.end,
-        ));
+
+        entities.add(
+          DetectedEntity(
+            type: EntityType.phone,
+            value: rawPhone,
+            displayValue: _formatPhoneForDisplay(rawPhone),
+            actionUri: 'tel:$cleanPhone',
+            startIndex: match.start,
+            endIndex: match.end,
+          ),
+        );
       }
     }
 
@@ -128,14 +127,30 @@ class EntityDetectionService {
     try {
       // Clean the phone number
       final cleaned = phone.replaceAll(RegExp(r'[^\d+]'), '');
-      
+
       // Try to parse as US number (default)
       final phoneNumber = PhoneNumber.parse(cleaned, callerCountry: IsoCode.US);
       return phoneNumber.isValid();
     } catch (e) {
-      // If parsing fails, fall back to basic length check
+      // If parsing fails, apply stricter validation
       final digits = phone.replaceAll(RegExp(r'\D'), '');
-      return digits.length >= 10 && digits.length <= 15;
+
+      // Basic length check
+      if (digits.length < 10 || digits.length > 15) return false;
+
+      // Reject obviously fake numbers (all same digit or sequential)
+      if (RegExp(r'^(\d)\1+$').hasMatch(digits)) {
+        return false; // e.g., 1111111111
+      }
+      if (digits == '1234567890' || digits == '0987654321') return false;
+
+      // Reject numbers starting with 0 or 1 for US area codes (invalid)
+      final areaCode = digits.length == 11
+          ? digits.substring(1, 4)
+          : digits.substring(0, 3);
+      if (areaCode.startsWith('0') || areaCode.startsWith('1')) return false;
+
+      return true;
     }
   }
 
@@ -157,17 +172,19 @@ class EntityDetectionService {
 
     for (final match in matches) {
       final email = match.group(0)!;
-      
+
       // Validate with email_validator package
       if (EmailValidator.validate(email)) {
-        entities.add(DetectedEntity(
-          type: EntityType.email,
-          value: email,
-          displayValue: email,
-          actionUri: 'mailto:$email',
-          startIndex: match.start,
-          endIndex: match.end,
-        ));
+        entities.add(
+          DetectedEntity(
+            type: EntityType.email,
+            value: email,
+            displayValue: email,
+            actionUri: 'mailto:$email',
+            startIndex: match.start,
+            endIndex: match.end,
+          ),
+        );
       }
     }
 
@@ -181,21 +198,23 @@ class EntityDetectionService {
 
     for (final match in matches) {
       var url = match.group(0)!;
-      
+
       // Ensure URL has protocol
       final actionUrl = url.startsWith('http') ? url : 'https://$url';
-      
+
       // Create display URL (truncate if too long)
       final displayUrl = url.length > 40 ? '${url.substring(0, 40)}...' : url;
-      
-      entities.add(DetectedEntity(
-        type: EntityType.url,
-        value: url,
-        displayValue: displayUrl,
-        actionUri: actionUrl,
-        startIndex: match.start,
-        endIndex: match.end,
-      ));
+
+      entities.add(
+        DetectedEntity(
+          type: EntityType.url,
+          value: url,
+          displayValue: displayUrl,
+          actionUri: actionUrl,
+          startIndex: match.start,
+          endIndex: match.end,
+        ),
+      );
     }
 
     return entities;
@@ -206,16 +225,16 @@ class EntityDetectionService {
     if (entities.isEmpty) return entities;
 
     final result = <DetectedEntity>[entities.first];
-    
+
     for (int i = 1; i < entities.length; i++) {
       final current = entities[i];
       final last = result.last;
-      
+
       // Skip if current overlaps with last
       if (current.startIndex < last.endIndex) {
         continue;
       }
-      
+
       result.add(current);
     }
 
@@ -231,11 +250,11 @@ class EntityDetectionService {
   Map<EntityType, List<DetectedEntity>> getEntitiesGrouped(String content) {
     final entities = detectEntities(content);
     final grouped = <EntityType, List<DetectedEntity>>{};
-    
+
     for (final entity in entities) {
       grouped.putIfAbsent(entity.type, () => []).add(entity);
     }
-    
+
     return grouped;
   }
 }

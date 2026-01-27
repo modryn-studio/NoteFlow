@@ -78,8 +78,10 @@ class SpeechService {
       listenFor: const Duration(seconds: 30),
       pauseFor: const Duration(seconds: 3),
       localeId: localeId,
-      cancelOnError: true,
-      partialResults: true,
+      listenOptions: SpeechListenOptions(
+        cancelOnError: true,
+        partialResults: true,
+      ),
     );
   }
 
@@ -119,8 +121,5 @@ class SpeechResult {
   final String text;
   final bool isFinal;
 
-  SpeechResult({
-    required this.text,
-    required this.isFinal,
-  });
+  SpeechResult({required this.text, required this.isFinal});
 }

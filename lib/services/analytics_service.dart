@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/analytics_event.dart';
 import '../core/config/supabase_config.dart';
@@ -7,7 +9,7 @@ import 'auth_service.dart';
 class AnalyticsService {
   static AnalyticsService? _instance;
   static AnalyticsService get instance => _instance ??= AnalyticsService._();
-  
+
   AnalyticsService._();
 
   static const String _boxName = 'tag_corrections';
@@ -73,6 +75,9 @@ class AnalyticsService {
     }
   }
 
+  /// Default timeout for sync operations
+  static const Duration _syncTimeout = Duration(seconds: 10);
+
   /// Sync events to Supabase
   Future<int> syncToSupabase() async {
     final events = await getUnsyncedEvents();
@@ -85,8 +90,9 @@ class AnalyticsService {
       try {
         await client
             .from('analytics_tag_corrections')
-            .insert(event.toSupabaseJson());
-        
+            .insert(event.toSupabaseJson())
+            .timeout(_syncTimeout);
+
         event.synced = true;
         await event.save();
         syncedCount++;
