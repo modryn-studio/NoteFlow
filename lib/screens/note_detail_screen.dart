@@ -27,6 +27,8 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   late TextEditingController _contentController;
   late List<String> _tags;
   late List<String> _originalTags; // Track original tags for analytics
+  late String _originalTitle; // Track original title
+  late String _originalContent; // Track original content
   bool _isEditing = false;
   bool _isSaving = false;
   bool _hasChanges = false;
@@ -34,13 +36,22 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   List<String> _newTags = [];
 
   bool get _isNewNote => widget.note == null;
+  
+  /// Check if content actually changed (not just opened for edit)
+  bool get _hasActualContentChanges {
+    final currentTitle = _titleController.text.trim();
+    final currentContent = _contentController.text.trim();
+    return currentTitle != _originalTitle || currentContent != _originalContent;
+  }
 
   @override
   void initState() {
     super.initState();
     _note = widget.note;
-    _titleController = TextEditingController(text: _note?.title ?? '');
-    _contentController = TextEditingController(text: _note?.content ?? '');
+    _originalTitle = _note?.title ?? '';
+    _originalContent = _note?.content ?? '';
+    _titleController = TextEditingController(text: _originalTitle);
+    _contentController = TextEditingController(text: _originalContent);
     _tags = List.from(_note?.tags ?? []);
     _originalTags = List.from(_note?.tags ?? []); // Store original for analytics
     _isEditing = true; // Always start in edit mode
@@ -103,8 +114,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           title: title.isEmpty ? null : title,
           content: content,
           tags: _tags,
-          lastEdited: now,     // Content changed
-          lastAccessed: now,   // Viewing while editing
+          // Only update lastEdited if content actually changed
+          lastEdited: _hasActualContentChanges ? now : _note!.lastEdited,
+          lastAccessed: now,   // Always update accessed time
         );
         await SupabaseService.instance.updateNote(updatedNote);
       }
@@ -148,9 +160,10 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         // Update existing note
         final now = DateTime.now().toUtc();
         final updatedNote = _note!.copyWith(
+          title: title.isEmpty ? null : title,
           content: content,
           tags: _tags,
-          lastEdited: now,     // Content changed
+          lastEdited: _hasActualContentChanges ? now : _note!.lastEdited,
           lastAccessed: now,   // Viewing while editing
         );
         await SupabaseService.instance.updateNote(updatedNote);

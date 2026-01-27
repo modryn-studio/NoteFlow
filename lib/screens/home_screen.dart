@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../core/theme/app_theme.dart';
 import '../models/note_model.dart';
 import '../services/supabase_service.dart';
@@ -8,6 +9,8 @@ import '../widgets/glass_search_bar.dart';
 import '../widgets/note_card.dart';
 import 'note_detail_screen.dart';
 import 'voice_capture_screen.dart';
+
+enum SortMode { smart, recent }
 
 /// Main home screen with intelligent note surfacing
 class HomeScreen extends StatefulWidget {
@@ -23,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<NoteCategory, List<NoteModel>> _groupedNotes = {};
   bool _isLoading = true;
   String _searchQuery = '';
+  SortMode _sortMode = SortMode.smart;
 
   // Multi-select mode state
   bool _isSelectionMode = false;
@@ -39,13 +43,39 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadNotes();
+    _initializeScreen();
+  }
+
+  Future<void> _initializeScreen() async {
+    await _loadSortPreference();
+    await _loadNotes();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadSortPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedMode = prefs.getString('sort_mode') ?? 'smart';
+    setState(() {
+      _sortMode = savedMode == 'recent' ? SortMode.recent : SortMode.smart;
+    });
+  }
+
+  Future<void> _saveSortPreference(SortMode mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('sort_mode', mode == SortMode.recent ? 'recent' : 'smart');
+  }
+
+  void _toggleSortMode() {
+    setState(() {
+      _sortMode = _sortMode == SortMode.smart ? SortMode.recent : SortMode.smart;
+    });
+    _saveSortPreference(_sortMode);
+    _groupNotes(_allNotes); // Re-sort with new mode
   }
 
   /// Enter selection mode
@@ -263,7 +293,34 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _groupNotes(List<NoteModel> notes) {
-    _groupedNotes = FrequencyTracker.instance.groupNotesByCategory(notes);
+    // Group by category first
+    final grouped = <NoteCategory, List<NoteModel>>{
+      NoteCategory.daily: [],
+      NoteCategory.weekly: [],
+      NoteCategory.monthly: [],
+      NoteCategory.archive: [],
+    };
+
+    for (final note in notes) {
+      grouped[note.category]!.add(note);
+    }
+
+    // Sort each category based on current sort mode
+    for (final category in grouped.keys) {
+      if (_sortMode == SortMode.smart) {
+        // Smart: Sort by frequency count (most accessed first)
+        grouped[category]!.sort(
+          (a, b) => b.frequencyCount.compareTo(a.frequencyCount),
+        );
+      } else {
+        // Recent: Sort by last edited (most recent first)
+        grouped[category]!.sort(
+          (a, b) => b.lastEdited.compareTo(a.lastEdited),
+        );
+      }
+    }
+
+    _groupedNotes = grouped;
     setState(() {});
   }
 
@@ -410,6 +467,45 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     Row(
                       children: [
+                        // Sort toggle button
+                        GestureDetector(
+                          onTap: _toggleSortMode,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.darkPurple.withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: AppColors.softLavender.withValues(alpha: 0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _sortMode == SortMode.smart
+                                      ? Icons.psychology_outlined
+                                      : Icons.schedule_outlined,
+                                  size: 16,
+                                  color: AppColors.softLavender,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _sortMode == SortMode.smart ? 'Smart' : 'Recent',
+                                  style: AppTypography.caption.copyWith(
+                                    color: AppColors.softLavender,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
                         // Text note button
                         IconButton(
                           icon: const Icon(

@@ -173,16 +173,6 @@ class NoteCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                
-                // Tags row
-                if (note.tags.isNotEmpty) ...[
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: note.tags.map((tag) => _buildTag(tag)).toList(),
-                  ),
-                  const SizedBox(height: 10),
-                ],
 
                 // Bottom row with dual timestamps
                 Row(
@@ -229,36 +219,8 @@ class NoteCard extends StatelessWidget {
                 ),
               ],
             ),
-            // New/Updated badge with fade-in animation
-            if (note.isNew || note.isRecentlyUpdated)
-              Positioned(
-                top: 0,
-                right: 0,
-                child: _NoteBadge(
-                  isNew: note.isNew,
-                  isUpdated: note.isRecentlyUpdated,
-                ),
-              ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildTag(String tag) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.softLavender.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: AppColors.softLavender.withValues(alpha: 0.3),
-          width: 1,
-        ),
-      ),
-      child: Text(
-        tag,
-        style: AppTypography.tag,
       ),
     );
   }
@@ -337,48 +299,3 @@ class NoteCard extends StatelessWidget {
   }
 }
 
-/// Badge widget for New/Updated status
-class _NoteBadge extends StatelessWidget {
-  final bool isNew;
-  final bool isUpdated;
-
-  const _NoteBadge({
-    required this.isNew,
-    required this.isUpdated,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isNewBadge = isNew;
-    final badgeColor = isNewBadge ? AppColors.warmGlow : AppColors.mintGlow;
-    final badgeText = isNewBadge ? 'NEW' : 'UPDATED';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: badgeColor.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: badgeColor.withValues(alpha: 0.4),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: badgeColor.withValues(alpha: 0.3),
-            blurRadius: 8,
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: Text(
-        badgeText,
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          color: badgeColor,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-}
