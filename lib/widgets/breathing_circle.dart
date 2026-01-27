@@ -83,15 +83,15 @@ class _BreathingCircleState extends State<BreathingCircle>
               shape: BoxShape.circle,
               gradient: RadialGradient(
                 colors: [
-                  widget.color.withOpacity(_opacityAnimation.value),
-                  widget.color.withOpacity(_opacityAnimation.value * 0.3),
+                  widget.color.withValues(alpha: _opacityAnimation.value),
+                  widget.color.withValues(alpha: _opacityAnimation.value * 0.3),
                   Colors.transparent,
                 ],
                 stops: const [0.0, 0.6, 1.0],
               ),
               boxShadow: [
                 BoxShadow(
-                  color: widget.color.withOpacity(_opacityAnimation.value * 0.5),
+                  color: widget.color.withValues(alpha: _opacityAnimation.value * 0.5),
                   blurRadius: 40,
                   spreadRadius: 10,
                 ),
@@ -103,7 +103,7 @@ class _BreathingCircleState extends State<BreathingCircle>
                 height: widget.size * 0.4,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: widget.color.withOpacity(0.9),
+                  color: widget.color.withValues(alpha: 0.9),
                 ),
                 child: Icon(
                   Icons.mic_rounded,
@@ -203,7 +203,7 @@ class _WaveformVisualizerState extends State<WaveformVisualizer>
             height: widget.height * _heights[index],
             margin: const EdgeInsets.symmetric(horizontal: 2),
             decoration: BoxDecoration(
-              color: widget.color.withOpacity(0.6),
+              color: widget.color.withValues(alpha: 0.6),
               borderRadius: BorderRadius.circular(2),
             ),
           );

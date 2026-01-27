@@ -172,6 +172,60 @@ class SupabaseService {
     });
   }
 
+  /// Batch delete notes with progress callback
+  /// Returns a list of failed note IDs (if any)
+  /// Throws if network is offline or auth expired (checked upfront)
+  Future<List<String>> batchDeleteNotes(
+    List<String> noteIds, {
+    void Function(int current, int total)? onProgress,
+  }) async {
+    if (noteIds.isEmpty) return [];
+
+    // Check auth upfront
+    final userId = _userId; // This throws if not authenticated
+    
+    // Check network connectivity by making a simple query
+    try {
+      await _client.from(_notesTable).select('id').limit(1).timeout(
+        const Duration(seconds: 5),
+      );
+    } on TimeoutException {
+      throw Exception('Network appears to be offline. Please check your connection.');
+    } catch (e) {
+      if (e.toString().contains('network') || 
+          e.toString().contains('connection') ||
+          e.toString().contains('socket')) {
+        throw Exception('Network appears to be offline. Please check your connection.');
+      }
+      // Auth errors should be rethrown
+      if (e is AuthenticationException) rethrow;
+    }
+
+    final failedIds = <String>[];
+    
+    for (int i = 0; i < noteIds.length; i++) {
+      final noteId = noteIds[i];
+      
+      try {
+        await _client
+            .from(_notesTable)
+            .delete()
+            .eq('id', noteId)
+            .eq('user_id', userId);
+      } catch (e) {
+        // Log the error and continue with remaining notes
+        failedIds.add(noteId);
+        // ignore: avoid_print
+        print('ERROR: Failed to delete note $noteId: $e');
+      }
+      
+      // Report progress
+      onProgress?.call(i + 1, noteIds.length);
+    }
+    
+    return failedIds;
+  }
+
   /// Search notes by content
   Future<List<NoteModel>> searchNotes(String query) async {
     if (query.isEmpty) {

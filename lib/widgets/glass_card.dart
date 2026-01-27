@@ -42,14 +42,14 @@ class GlassCard extends StatelessWidget {
             boxShadow: [
               // Main shadow
               BoxShadow(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withValues(alpha: 0.3),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
               // Glow effect for frequency indicators
               if (hasGlow)
                 BoxShadow(
-                  color: glowColor!.withOpacity(glowIntensity * 0.5),
+                  color: glowColor!.withValues(alpha: glowIntensity * 0.5),
                   blurRadius: 20,
                   spreadRadius: 2,
                 ),
@@ -65,7 +65,7 @@ class GlassCard extends StatelessWidget {
                   gradient: AppColors.glassGradient,
                   borderRadius: BorderRadius.circular(borderRadius),
                   border: Border.all(
-                    color: AppColors.glassHighlight.withOpacity(0.3),
+                    color: AppColors.glassHighlight.withValues(alpha: 0.3),
                     width: 1,
                   ),
                 ),

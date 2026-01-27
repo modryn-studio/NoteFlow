@@ -7,6 +7,7 @@ import 'core/config/supabase_config.dart';
 import 'core/theme/app_theme.dart';
 import 'services/local_storage_service.dart';
 import 'services/frequency_tracker.dart';
+import 'services/analytics_service.dart';
 import 'screens/splash_screen.dart';
 
 void main() async {
@@ -37,6 +38,9 @@ void main() async {
 
   // Initialize frequency tracker
   await FrequencyTracker.instance.initialize();
+
+  // Initialize analytics service
+  await AnalyticsService.instance.initialize();
 
   // Initialize Supabase
   await SupabaseConfig.initialize();

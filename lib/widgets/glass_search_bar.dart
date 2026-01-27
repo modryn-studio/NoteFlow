@@ -73,13 +73,13 @@ class _GlassSearchBarState extends State<GlassSearchBar> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  AppColors.glassTint.withOpacity(0.4),
-                  AppColors.darkPurple.withOpacity(0.3),
+                  AppColors.glassTint.withValues(alpha: 0.4),
+                  AppColors.darkPurple.withValues(alpha: 0.3),
                 ],
               ),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: AppColors.glassHighlight.withOpacity(0.3),
+                color: AppColors.glassHighlight.withValues(alpha: 0.3),
                 width: 1,
               ),
             ),
@@ -101,7 +101,7 @@ class _GlassSearchBarState extends State<GlassSearchBar> {
                     decoration: InputDecoration(
                       hintText: widget.hintText,
                       hintStyle: AppTypography.body.copyWith(
-                        color: AppColors.subtleGray.withOpacity(0.6),
+                        color: AppColors.subtleGray.withValues(alpha: 0.6),
                       ),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(vertical: 14),

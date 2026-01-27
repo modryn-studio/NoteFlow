@@ -66,7 +66,7 @@ class _TagShimmerState extends State<TagShimmer>
                 ? [
                     BoxShadow(
                       color: AppColors.softLavender
-                          .withOpacity(0.5 * (1 - _shimmerAnimation.value)),
+                          .withValues(alpha: 0.5 * (1 - _shimmerAnimation.value)),
                       blurRadius: 8,
                       spreadRadius: 2,
                     ),
@@ -102,10 +102,10 @@ class TagChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: AppColors.softLavender.withOpacity(0.2),
+          color: AppColors.softLavender.withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: AppColors.softLavender.withOpacity(0.3),
+            color: AppColors.softLavender.withValues(alpha: 0.3),
             width: 1,
           ),
         ),

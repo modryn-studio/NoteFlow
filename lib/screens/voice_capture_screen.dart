@@ -60,7 +60,7 @@ class _VoiceCaptureScreenState extends State<VoiceCaptureScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: AppColors.warmGlow.withOpacity(0.9),
+        backgroundColor: AppColors.warmGlow.withValues(alpha: 0.9),
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(16),
         shape: RoundedRectangleBorder(
@@ -182,7 +182,7 @@ class _VoiceCaptureScreenState extends State<VoiceCaptureScreen>
         body: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
-            color: AppColors.deepIndigo.withOpacity(0.85),
+            color: AppColors.deepIndigo.withValues(alpha: 0.85),
             child: SafeArea(
               child: Column(
                 children: [
@@ -283,10 +283,10 @@ class _VoiceCaptureScreenState extends State<VoiceCaptureScreen>
           padding: const EdgeInsets.all(16),
           constraints: const BoxConstraints(minHeight: 100),
           decoration: BoxDecoration(
-            color: AppColors.glassTint.withOpacity(0.2),
+            color: AppColors.glassTint.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: AppColors.glassHighlight.withOpacity(0.2),
+              color: AppColors.glassHighlight.withValues(alpha: 0.2),
             ),
           ),
           child: Text(
@@ -331,7 +331,7 @@ class _VoiceCaptureScreenState extends State<VoiceCaptureScreen>
             height: 80,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppColors.softLavender.withOpacity(0.2),
+              color: AppColors.softLavender.withValues(alpha: 0.2),
             ),
             child: const Icon(
               Icons.edit_rounded,
@@ -352,10 +352,10 @@ class _VoiceCaptureScreenState extends State<VoiceCaptureScreen>
           // Text field
           Container(
             decoration: BoxDecoration(
-              color: AppColors.glassTint.withOpacity(0.3),
+              color: AppColors.glassTint.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: AppColors.glassHighlight.withOpacity(0.3),
+                color: AppColors.glassHighlight.withValues(alpha: 0.3),
               ),
             ),
             child: TextField(
@@ -368,7 +368,7 @@ class _VoiceCaptureScreenState extends State<VoiceCaptureScreen>
               decoration: InputDecoration(
                 hintText: 'Start typing...',
                 hintStyle: AppTypography.body.copyWith(
-                  color: AppColors.subtleGray.withOpacity(0.6),
+                  color: AppColors.subtleGray.withValues(alpha: 0.6),
                 ),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.all(16),

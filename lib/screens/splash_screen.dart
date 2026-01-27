@@ -162,7 +162,7 @@ class _SplashScreenState extends State<SplashScreen>
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.softLavender.withOpacity(0.4),
+                              color: AppColors.softLavender.withValues(alpha: 0.4),
                               blurRadius: 30,
                               spreadRadius: 5,
                             ),
@@ -200,7 +200,7 @@ class _SplashScreenState extends State<SplashScreen>
                         Icon(
                           Icons.cloud_off_rounded,
                           size: 32,
-                          color: AppColors.warmGlow.withOpacity(0.8),
+                          color: AppColors.warmGlow.withValues(alpha: 0.8),
                         )
                       else
                         SizedBox(
@@ -209,7 +209,7 @@ class _SplashScreenState extends State<SplashScreen>
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              AppColors.softLavender.withOpacity(0.8),
+                              AppColors.softLavender.withValues(alpha: 0.8),
                             ),
                           ),
                         ),
@@ -247,10 +247,10 @@ class _SplashScreenState extends State<SplashScreen>
                               vertical: 12,
                             ),
                             decoration: BoxDecoration(
-                              color: AppColors.softLavender.withOpacity(0.2),
+                              color: AppColors.softLavender.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(24),
                               border: Border.all(
-                                color: AppColors.softLavender.withOpacity(0.5),
+                                color: AppColors.softLavender.withValues(alpha: 0.5),
                               ),
                             ),
                             child: Row(

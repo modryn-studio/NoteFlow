@@ -83,18 +83,18 @@ class _GlassButtonState extends State<GlassButton>
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    buttonColor.withOpacity(0.4),
-                    buttonColor.withOpacity(0.2),
+                    buttonColor.withValues(alpha: 0.4),
+                    buttonColor.withValues(alpha: 0.2),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: buttonColor.withOpacity(0.5),
+                  color: buttonColor.withValues(alpha: 0.5),
                   width: 1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: buttonColor.withOpacity(0.3),
+                    color: buttonColor.withValues(alpha: 0.3),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),

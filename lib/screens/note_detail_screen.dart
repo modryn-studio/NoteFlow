@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../core/theme/app_theme.dart';
 import '../models/note_model.dart';
 import '../services/supabase_service.dart';
 import '../services/tagging_service.dart';
+import '../services/entity_detection_service.dart';
+import '../services/analytics_service.dart';
 import '../widgets/tag_chip.dart';
 import '../widgets/glass_card.dart';
 
@@ -22,6 +25,7 @@ class NoteDetailScreen extends StatefulWidget {
 class _NoteDetailScreenState extends State<NoteDetailScreen> {
   late TextEditingController _contentController;
   late List<String> _tags;
+  late List<String> _originalTags; // Track original tags for analytics
   bool _isEditing = false;
   bool _isSaving = false;
   bool _hasChanges = false;
@@ -36,6 +40,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     _note = widget.note;
     _contentController = TextEditingController(text: _note?.content ?? '');
     _tags = List.from(_note?.tags ?? []);
+    _originalTags = List.from(_note?.tags ?? []); // Store original for analytics
     _isEditing = true; // Always start in edit mode
 
     _contentController.addListener(_onContentChanged);
@@ -81,6 +86,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         final tags = TaggingService.instance.autoTag(content);
         await SupabaseService.instance.createNote(content, tags);
       } else if (_note != null) {
+        // Log tag corrections before saving (existing notes only)
+        await _logTagCorrections();
+        
         final now = DateTime.now().toUtc();
         final updatedNote = _note!.copyWith(
           content: content,
@@ -119,6 +127,9 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         final tags = TaggingService.instance.autoTag(content);
         await SupabaseService.instance.createNote(content, tags);
       } else if (_note != null) {
+        // Log tag corrections before saving (existing notes only)
+        await _logTagCorrections();
+        
         // Update existing note
         final now = DateTime.now().toUtc();
         final updatedNote = _note!.copyWith(
@@ -138,6 +149,33 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       setState(() {
         _isSaving = false;
       });
+    }
+  }
+
+  /// Log tag corrections for ML training
+  Future<void> _logTagCorrections() async {
+    if (_note == null) return;
+    
+    // Check if tags changed
+    final originalSet = Set.from(_originalTags);
+    final currentSet = Set.from(_tags);
+    
+    if (originalSet.difference(currentSet).isEmpty && 
+        currentSet.difference(originalSet).isEmpty) {
+      return; // No changes
+    }
+    
+    try {
+      await AnalyticsService.instance.logTagCorrection(
+        noteId: _note!.id,
+        noteContent: _contentController.text,
+        originalTags: _originalTags,
+        finalTags: _tags,
+      );
+    } catch (e) {
+      // Silently ignore analytics errors - don't block save
+      // ignore: avoid_print
+      print('ANALYTICS: Failed to log tag correction: $e');
     }
   }
 
@@ -339,10 +377,16 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                               style: AppTypography.caption,
                             ),
                           ),
+                        
+                        // Add space for action chips
+                        const SizedBox(height: 80),
                       ],
                     ),
                   ),
                 ),
+                
+                // Smart action chips (floating at bottom)
+                _buildSmartActionChips(),
               ],
             ),
           ),
@@ -443,7 +487,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.softTeal.withOpacity(0.2),
+                        color: AppColors.softTeal.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Row(
@@ -472,7 +516,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: AppColors.softLavender.withOpacity(0.2),
+                        color: AppColors.softLavender.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Icon(
@@ -527,7 +571,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
               decoration: InputDecoration(
                 hintText: 'Start typing your note...',
                 hintStyle: AppTypography.body.copyWith(
-                  color: AppColors.subtleGray.withOpacity(0.6),
+                  color: AppColors.subtleGray.withValues(alpha: 0.6),
                 ),
                 border: InputBorder.none,
               ),
@@ -543,12 +587,122 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                       : _contentController.text,
                   style: _contentController.text.isEmpty
                       ? AppTypography.body.copyWith(
-                          color: AppColors.subtleGray.withOpacity(0.6),
+                          color: AppColors.subtleGray.withValues(alpha: 0.6),
                         )
                       : AppTypography.bodyLarge,
                 ),
               ),
             ),
     );
+  }
+
+  /// Build smart action chips for detected entities (phone, email, URL)
+  Widget _buildSmartActionChips() {
+    final content = _contentController.text;
+    final entities = EntityDetectionService.instance.detectEntities(content);
+    
+    if (entities.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            AppColors.deepIndigo.withValues(alpha: 0.0),
+            AppColors.deepIndigo.withValues(alpha: 0.95),
+            AppColors.deepIndigo,
+          ],
+          stops: const [0.0, 0.3, 1.0],
+        ),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: entities.map((entity) => _buildActionChip(entity)).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionChip(DetectedEntity entity) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: GestureDetector(
+        onTap: () => _launchEntity(entity),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.glassTint.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: AppColors.glassHighlight.withValues(alpha: 0.3),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                entity.icon,
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    entity.actionLabel,
+                    style: AppTypography.caption.copyWith(
+                      color: AppColors.softLavender,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 11,
+                    ),
+                  ),
+                  Text(
+                    entity.displayValue.length > 20 
+                        ? '${entity.displayValue.substring(0, 20)}...'
+                        : entity.displayValue,
+                    style: AppTypography.caption.copyWith(
+                      color: AppColors.pearlWhite,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _launchEntity(DetectedEntity entity) async {
+    final uri = Uri.parse(entity.actionUri);
+    
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        if (mounted) {
+          _showError('Could not open ${entity.actionLabel.toLowerCase()}');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showError('Failed to open: $e');
+      }
+    }
   }
 }

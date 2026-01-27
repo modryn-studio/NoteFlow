@@ -35,8 +35,8 @@ class AppColors {
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
-          glassTint.withOpacity(0.3),
-          darkPurple.withOpacity(0.2),
+          glassTint.withValues(alpha: 0.3),
+          darkPurple.withValues(alpha: 0.2),
         ],
       );
 }
