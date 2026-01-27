@@ -35,6 +35,12 @@ ALTER TABLE public.analytics_tag_corrections ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for analytics_tag_corrections
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Users can view own analytics" ON public.analytics_tag_corrections;
+DROP POLICY IF EXISTS "Users can insert own analytics" ON public.analytics_tag_corrections;
+DROP POLICY IF EXISTS "Users can update own analytics" ON public.analytics_tag_corrections;
+DROP POLICY IF EXISTS "Users can delete own analytics" ON public.analytics_tag_corrections;
+
 -- Policy: Users can view their own analytics
 CREATE POLICY "Users can view own analytics" 
     ON public.analytics_tag_corrections 

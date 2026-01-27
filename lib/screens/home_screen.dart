@@ -602,30 +602,24 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
 
-        // Notes
-        AnimatedCrossFade(
-          firstChild: Column(
-            children: notes.map((note) {
-              return NoteCard(
-                note: note,
-                onTap: _isSelectionMode 
-                    ? () => _toggleNoteSelection(note)
-                    : () => _openNote(note),
-                onLongPress: _isSelectionMode 
-                    ? null 
-                    : () => _enterSelectionMode(note),
-                onDelete: _isSelectionMode ? null : () => _deleteNote(note),
-                isSelectionMode: _isSelectionMode,
-                isSelected: _selectedNoteIds.contains(note.id),
-                onSelectionToggle: () => _toggleNoteSelection(note),
-              );
-            }).toList(),
-          ),
-          secondChild: const SizedBox.shrink(),
-          crossFadeState:
-              isCollapsed ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-          duration: AppAnimations.fast,
-        ),
+        // Notes - Use ListView to prevent flicker on delete
+        if (!isCollapsed)
+          ...notes.map((note) {
+            return NoteCard(
+              key: ValueKey(note.id),
+              note: note,
+              onTap: _isSelectionMode 
+                  ? () => _toggleNoteSelection(note)
+                  : () => _openNote(note),
+              onLongPress: _isSelectionMode 
+                  ? null 
+                  : () => _enterSelectionMode(note),
+              onDelete: _isSelectionMode ? null : () => _deleteNote(note),
+              isSelectionMode: _isSelectionMode,
+              isSelected: _selectedNoteIds.contains(note.id),
+              onSelectionToggle: () => _toggleNoteSelection(note),
+            );
+          }).toList(),
       ],
     );
   }

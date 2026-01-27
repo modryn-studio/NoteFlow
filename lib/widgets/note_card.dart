@@ -184,16 +184,6 @@ class NoteCard extends StatelessWidget {
                   const SizedBox(height: 10),
                 ],
 
-                // Content preview
-                Text(
-                  _previewText,
-                  style: AppTypography.body,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
-
-                const SizedBox(height: 10),
-
                 // Bottom row with dual timestamps
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -347,8 +337,8 @@ class NoteCard extends StatelessWidget {
   }
 }
 
-/// Badge widget with 300ms fade-in animation for New/Updated status
-class _NoteBadge extends StatefulWidget {
+/// Badge widget for New/Updated status
+class _NoteBadge extends StatelessWidget {
   final bool isNew;
   final bool isUpdated;
 
@@ -358,65 +348,35 @@ class _NoteBadge extends StatefulWidget {
   });
 
   @override
-  State<_NoteBadge> createState() => _NoteBadgeState();
-}
-
-class _NoteBadgeState extends State<_NoteBadge> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _fadeAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
-    );
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final isNewBadge = widget.isNew;
+    final isNewBadge = isNew;
     final badgeColor = isNewBadge ? AppColors.warmGlow : AppColors.mintGlow;
     final badgeText = isNewBadge ? 'NEW' : 'UPDATED';
 
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: badgeColor.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: badgeColor.withValues(alpha: 0.4),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: badgeColor.withValues(alpha: 0.3),
-              blurRadius: 8,
-              spreadRadius: 0,
-            ),
-          ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: badgeColor.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: badgeColor.withValues(alpha: 0.4),
+          width: 1,
         ),
-        child: Text(
-          badgeText,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            color: badgeColor,
-            letterSpacing: 0.5,
+        boxShadow: [
+          BoxShadow(
+            color: badgeColor.withValues(alpha: 0.3),
+            blurRadius: 8,
+            spreadRadius: 0,
           ),
+        ],
+      ),
+      child: Text(
+        badgeText,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: badgeColor,
+          letterSpacing: 0.5,
         ),
       ),
     );
