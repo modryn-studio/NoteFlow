@@ -7,7 +7,8 @@ import 'core/theme/app_theme.dart';
 import 'services/local_storage_service.dart';
 import 'services/frequency_tracker.dart';
 import 'services/analytics_service.dart';
-import 'screens/splash_screen.dart';
+import 'services/auth_service.dart';
+import 'screens/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,6 +43,9 @@ void main() async {
 
   // Initialize Supabase
   await SupabaseConfig.initialize();
+
+  // Ensure user is authenticated
+  await AuthService.instance.ensureAuthenticated();
 
   runApp(const NoteFlowApp());
 }
@@ -82,7 +86,7 @@ class _NoteFlowAppState extends State<NoteFlowApp> with WidgetsBindingObserver {
       title: 'NoteFlow',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
-      home: const SplashScreen(),
+      home: const HomeScreen(),
     );
   }
 }
