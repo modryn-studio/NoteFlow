@@ -8,8 +8,6 @@ class GlassCard extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
   final EdgeInsetsGeometry? margin;
   final double borderRadius;
-  final Color? glowColor;
-  final double glowIntensity;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
@@ -19,16 +17,12 @@ class GlassCard extends StatelessWidget {
     this.padding,
     this.margin,
     this.borderRadius = 16,
-    this.glowColor,
-    this.glowIntensity = 0.0,
     this.onTap,
     this.onLongPress,
   });
 
   @override
   Widget build(BuildContext context) {
-    final hasGlow = glowColor != null && glowIntensity > 0;
-
     return Container(
       margin: margin ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: GestureDetector(
@@ -46,13 +40,6 @@ class GlassCard extends StatelessWidget {
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
-              // Glow effect for frequency indicators
-              if (hasGlow)
-                BoxShadow(
-                  color: glowColor!.withValues(alpha: glowIntensity * 0.5),
-                  blurRadius: 20,
-                  spreadRadius: 2,
-                ),
             ],
           ),
           child: ClipRRect(
@@ -85,8 +72,6 @@ class AnimatedGlassCard extends StatefulWidget {
   final EdgeInsetsGeometry? padding;
   final EdgeInsetsGeometry? margin;
   final double borderRadius;
-  final Color? glowColor;
-  final double glowIntensity;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
@@ -96,8 +81,6 @@ class AnimatedGlassCard extends StatefulWidget {
     this.padding,
     this.margin,
     this.borderRadius = 16,
-    this.glowColor,
-    this.glowIntensity = 0.0,
     this.onTap,
     this.onLongPress,
   });
@@ -155,8 +138,6 @@ class _AnimatedGlassCardState extends State<AnimatedGlassCard>
           padding: widget.padding,
           margin: widget.margin,
           borderRadius: widget.borderRadius,
-          glowColor: widget.glowColor,
-          glowIntensity: widget.glowIntensity,
           child: widget.child,
         ),
       ),

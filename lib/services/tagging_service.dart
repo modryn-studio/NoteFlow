@@ -168,12 +168,28 @@ class TaggingService {
   }
 
   /// Add custom keyword to a tag category
-  void addKeywordToTag(String tag, String keyword) {
-    if (_tagPatterns.containsKey(tag)) {
-      _tagPatterns[tag]!.add(keyword.toLowerCase());
-    } else {
-      _tagPatterns[tag] = [keyword.toLowerCase()];
+  /// Returns true if keyword was added, false if invalid or already exists
+  bool addKeywordToTag(String tag, String keyword) {
+    // Sanitize input: lowercase, trim, remove special characters
+    final sanitizedKeyword = keyword
+        .toLowerCase()
+        .trim()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), '');
+    
+    // Validate keyword
+    if (sanitizedKeyword.isEmpty || sanitizedKeyword.length > 50) {
+      return false;
     }
+    
+    if (_tagPatterns.containsKey(tag)) {
+      if (_tagPatterns[tag]!.contains(sanitizedKeyword)) {
+        return false; // Already exists
+      }
+      _tagPatterns[tag]!.add(sanitizedKeyword);
+    } else {
+      _tagPatterns[tag] = [sanitizedKeyword];
+    }
+    return true;
   }
 
   /// Get all available tag categories

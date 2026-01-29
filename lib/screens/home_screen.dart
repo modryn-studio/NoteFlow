@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 import '../core/theme/app_theme.dart';
 import '../models/note_model.dart';
 import '../services/supabase_service.dart';
@@ -22,6 +23,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   List<NoteModel> _allNotes = []; // Preserve original notes
   Map<NoteCategory, List<NoteModel>> _groupedNotes = {};
   bool _isLoading = true;
@@ -54,6 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -169,8 +172,11 @@ class _HomeScreenState extends State<HomeScreen> {
     // Create a ValueNotifier to update dialog progress
     final progressNotifier = ValueNotifier<int>(0);
 
-    // Capture navigator before async gap
+    if (!mounted) return;
+
+    // Capture navigator and context before async gap
     final navigator = Navigator.of(context);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     showDialog(
       context: context,
@@ -227,7 +233,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // Show result
       if (failedIds.isEmpty) {
-        _showSuccess('$selectedCount notes deleted');
+        if (mounted) {
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Text('$selectedCount notes deleted'),
+              backgroundColor: AppColors.mintGlow.withValues(alpha: 0.9),
+            ),
+          );
+        }
       } else {
         // Rollback failed notes using the cached backup
         final failedNotes = notesBackup
@@ -242,7 +255,20 @@ class _HomeScreenState extends State<HomeScreen> {
           });
         }
 
-        _showError('Failed to delete ${failedIds.length} notes');
+        // Show detailed error with note titles
+        final failedTitles = failedNotes
+            .map((n) => n.displayTitle)
+            .take(3)
+            .join(', ');
+        final moreCount = failedNotes.length > 3 ? ' and ${failedNotes.length - 3} more' : '';
+        if (mounted) {
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Text('Failed to delete: $failedTitles$moreCount'),
+              backgroundColor: AppColors.warmGlow,
+            ),
+          );
+        }
       }
     } catch (e) {
       // Dispose the progress notifier
@@ -253,21 +279,18 @@ class _HomeScreenState extends State<HomeScreen> {
         navigator.pop();
       }
 
-      _showError('Delete failed: $e');
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('Delete failed: $e'),
+            backgroundColor: AppColors.warmGlow,
+          ),
+        );
+      }
 
       // Reload notes to restore state
       await _loadNotes();
     }
-  }
-
-  void _showSuccess(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.mintGlow.withValues(alpha: 0.9),
-      ),
-    );
   }
 
   Future<void> _loadNotes({bool skipGrouping = false}) async {
@@ -353,19 +376,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openNote(NoteModel note) async {
+    // Unfocus search bar before navigation
+    FocusScope.of(context).unfocus();
+    
     // Capture search query before async operation to detect changes
     final searchQueryBeforeNav = _searchQuery;
 
-    // Track frequency - no longer fire-and-forget to avoid race condition
-    // This ensures database is updated before we reload notes
-    try {
-      await FrequencyTracker.instance.trackNoteOpen(note.id);
-    } catch (error) {
-      // Silently log tracking errors, but continue navigation
-      // ignore: avoid_print
-      print('ERROR: Failed to track note open: $error');
-    }
-
+    // Navigate immediately for instant feel
     if (!mounted) return;
 
     await Navigator.of(context).push<bool>(
@@ -373,6 +390,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (!mounted) return;
+
+    // Unfocus search bar again after returning to prevent auto-focus
+    _searchFocusNode.unfocus();
+
+    // Track frequency in background (fire-and-forget, don't block UI)
+    // Ignore errors since this is non-critical
+    unawaited(
+      FrequencyTracker.instance.trackNoteOpen(note.id).catchError((error) {
+        // Silently log tracking errors
+        debugPrint('INFO: Failed to track note open (note may have been deleted): $error');
+        return note; // Return original note on error
+      }),
+    );
 
     // Check if search query changed during navigation
     final searchQueryAfterNav = _searchQuery;
@@ -449,100 +479,115 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(gradient: AppColors.backgroundGradient),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'NoteFlow',
-                      style: AppTypography.heading.copyWith(fontSize: 28),
-                    ),
-                    Row(
-                      children: [
-                        // Sort toggle button
-                        GestureDetector(
-                          onTap: _toggleSortMode,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.darkPurple.withValues(alpha: 0.5),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: AppColors.softLavender.withValues(alpha: 0.3),
-                                width: 1,
+    return PopScope(
+      canPop: !_isSelectionMode,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _isSelectionMode) {
+          _exitSelectionMode();
+        }
+      },
+      child: Scaffold(
+        body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          // Dismiss keyboard when tapping outside
+          FocusScope.of(context).unfocus();
+        },
+        child: Container(
+          decoration: BoxDecoration(gradient: AppColors.backgroundGradient),
+          child: SafeArea(
+            child: Column(
+              children: [
+                // Header
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'NoteFlow',
+                        style: AppTypography.heading.copyWith(fontSize: 28),
+                      ),
+                      Row(
+                        children: [
+                          // Sort toggle button
+                          GestureDetector(
+                            onTap: _toggleSortMode,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.darkPurple.withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: AppColors.softLavender.withValues(alpha: 0.3),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _sortMode == SortMode.smart
+                                        ? Icons.psychology_outlined
+                                        : Icons.schedule_outlined,
+                                    size: 16,
+                                    color: AppColors.softLavender,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _sortMode == SortMode.smart ? 'Smart' : 'Recent',
+                                    style: AppTypography.caption.copyWith(
+                                      color: AppColors.softLavender,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  _sortMode == SortMode.smart
-                                      ? Icons.psychology_outlined
-                                      : Icons.schedule_outlined,
-                                  size: 16,
-                                  color: AppColors.softLavender,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  _sortMode == SortMode.smart ? 'Smart' : 'Recent',
-                                  style: AppTypography.caption.copyWith(
-                                    color: AppColors.softLavender,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
+                          ),
+                          const SizedBox(width: 8),
+                          // Text note button
+                          IconButton(
+                            icon: const Icon(
+                              Icons.add_rounded,
+                              color: AppColors.pearlWhite,
                             ),
+                            onPressed: _createTextNote,
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        // Text note button
-                        IconButton(
-                          icon: const Icon(
-                            Icons.add_rounded,
-                            color: AppColors.pearlWhite,
-                          ),
-                          onPressed: _createTextNote,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              // Search bar
-              GlassSearchBar(
-                controller: _searchController,
-                onChanged: _searchNotes,
-                hintText: 'Search notes...',
-              ),
-
-              // Notes list
-              Expanded(
-                child: _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          color: AppColors.softLavender,
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _loadNotes,
-                        color: AppColors.softLavender,
-                        backgroundColor: AppColors.darkPurple,
-                        child: _buildNotesList(),
+                        ],
                       ),
-              ),
-            ],
+                    ],
+                  ),
+                ),
+
+                // Search bar
+                GlassSearchBar(
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  onChanged: _searchNotes,
+                  hintText: 'Search notes...',
+                ),
+
+                // Notes list
+                Expanded(
+                  child: _isLoading
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.softLavender,
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _loadNotes,
+                          color: AppColors.softLavender,
+                          backgroundColor: AppColors.darkPurple,
+                          child: _buildNotesList(),
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -559,6 +604,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 size: 28,
               ),
             ),
+      ),
     );
   }
 

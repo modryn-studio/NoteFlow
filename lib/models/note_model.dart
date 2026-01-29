@@ -1,4 +1,7 @@
 import 'package:uuid/uuid.dart';
+import 'package:hive/hive.dart';
+
+part 'note_model.g.dart';
 
 enum NoteCategory {
   daily,
@@ -7,15 +10,45 @@ enum NoteCategory {
   archive,
 }
 
-class NoteModel {
+/// Constants for note model calculations
+class NoteModelConstants {
+  /// Tolerance in seconds for comparing timestamps (to account for processing time)
+  static const int timestampToleranceSeconds = 2;
+  
+  /// Hours threshold for considering a note as "new"
+  static const int newNoteHoursThreshold = 12;
+  
+  /// Hours threshold for considering a note as "recently updated"
+  static const int recentlyUpdatedHoursThreshold = 12;
+  
+  /// Maximum length for display title
+  static const int maxDisplayTitleLength = 30;
+  
+  /// Days thresholds for categories
+  static const int dailyHoursThreshold = 24;
+  static const int weeklyDaysThreshold = 7;
+  static const int monthlyDaysThreshold = 30;
+}
+
+@HiveType(typeId: 1)
+class NoteModel extends HiveObject {
+  @HiveField(0)
   final String id;
+  @HiveField(1)
   final String userId;
+  @HiveField(2)
   final String? title;  // Optional custom title
+  @HiveField(3)
   final String content;
+  @HiveField(4)
   final List<String> tags;
+  @HiveField(5)
   final int frequencyCount;
+  @HiveField(6)
   final DateTime lastAccessed;  // When last opened/viewed
+  @HiveField(7)
   final DateTime lastEdited;     // When content last changed
+  @HiveField(8)
   final DateTime createdAt;
 
   NoteModel({
@@ -53,10 +86,12 @@ class NoteModel {
 
   /// Auto-generated display title from custom title or first line of content (max 30 chars)
   String get displayTitle {
+    const maxLen = NoteModelConstants.maxDisplayTitleLength;
+    
     // Use custom title if provided
     if (title != null && title!.isNotEmpty) {
-      return title!.length > 30 
-          ? '${title!.substring(0, 30)}...' 
+      return title!.length > maxLen 
+          ? '${title!.substring(0, maxLen)}...' 
           : title!;
     }
     
@@ -64,8 +99,8 @@ class NoteModel {
     if (content.isEmpty) return 'Untitled';
     final firstLine = content.split('\n').first.trim();
     if (firstLine.isEmpty) return 'Untitled';
-    return firstLine.length > 30 
-        ? '${firstLine.substring(0, 30)}...' 
+    return firstLine.length > maxLen 
+        ? '${firstLine.substring(0, maxLen)}...' 
         : firstLine;
   }
 
@@ -80,9 +115,10 @@ class NoteModel {
     final hoursSinceCreated = now.difference(createdAtLocal).inHours;
     
     // Note is NEW if: created < 12h ago AND lastEdited equals createdAt (never edited)
-    // We use a small tolerance (1 second) for timestamp comparison
-    final neverEdited = lastEditedLocal.difference(createdAtLocal).inSeconds.abs() < 2;
-    return hoursSinceCreated < 12 && neverEdited;
+    // We use a small tolerance for timestamp comparison
+    final neverEdited = lastEditedLocal.difference(createdAtLocal).inSeconds.abs() < 
+        NoteModelConstants.timestampToleranceSeconds;
+    return hoursSinceCreated < NoteModelConstants.newNoteHoursThreshold && neverEdited;
   }
 
   /// Check if note was recently updated (edited < 12h ago AND has been edited before)
@@ -93,8 +129,9 @@ class NoteModel {
     final hoursSinceEdited = now.difference(lastEditedLocal).inHours;
     
     // Note is UPDATED if: edited < 12h ago AND lastEdited differs from createdAt
-    final hasBeenEdited = lastEditedLocal.difference(createdAtLocal).inSeconds.abs() >= 2;
-    return hoursSinceEdited < 12 && hasBeenEdited;
+    final hasBeenEdited = lastEditedLocal.difference(createdAtLocal).inSeconds.abs() >= 
+        NoteModelConstants.timestampToleranceSeconds;
+    return hoursSinceEdited < NoteModelConstants.recentlyUpdatedHoursThreshold && hasBeenEdited;
   }
 
   /// Determine category based on last accessed time
@@ -104,11 +141,11 @@ class NoteModel {
     final lastAccessedLocal = lastAccessed.toLocal();
     final difference = now.difference(lastAccessedLocal);
 
-    if (difference.inHours < 24) {
+    if (difference.inHours < NoteModelConstants.dailyHoursThreshold) {
       return NoteCategory.daily;
-    } else if (difference.inDays < 7) {
+    } else if (difference.inDays < NoteModelConstants.weeklyDaysThreshold) {
       return NoteCategory.weekly;
-    } else if (difference.inDays < 30) {
+    } else if (difference.inDays < NoteModelConstants.monthlyDaysThreshold) {
       return NoteCategory.monthly;
     } else {
       return NoteCategory.archive;
@@ -124,14 +161,14 @@ class NoteModel {
       tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? [],
       frequencyCount: json['frequency_count'] as int? ?? 0,
       lastAccessed: json['last_accessed'] != null
-          ? DateTime.parse(json['last_accessed'] as String).toLocal()
-          : DateTime.now(),
+          ? DateTime.parse(json['last_accessed'] as String).toUtc()
+          : DateTime.now().toUtc(),
       lastEdited: json['last_edited'] != null
-          ? DateTime.parse(json['last_edited'] as String).toLocal()
-          : DateTime.now(),
+          ? DateTime.parse(json['last_edited'] as String).toUtc()
+          : DateTime.now().toUtc(),
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'] as String).toLocal()
-          : DateTime.now(),
+          ? DateTime.parse(json['created_at'] as String).toUtc()
+          : DateTime.now().toUtc(),
     );
   }
 
@@ -149,9 +186,10 @@ class NoteModel {
     };
   }
 
-  /// Create JSON for insert (excludes id for auto-generation)
+  /// Create JSON for insert (includes id so Supabase uses our client-generated UUID)
   Map<String, dynamic> toInsertJson() {
     return {
+      'id': id,
       'user_id': userId,
       'title': title,
       'content': content,

@@ -9,6 +9,22 @@ import '../services/analytics_service.dart';
 import '../widgets/tag_chip.dart';
 import '../widgets/glass_card.dart';
 
+/// Global lock to prevent concurrent edits of the same note on same device
+class _NoteEditLock {
+  static final Set<String> _lockedNoteIds = {};
+  
+  static bool tryLock(String? noteId) {
+    if (noteId == null) return true; // New notes don't need lock
+    if (_lockedNoteIds.contains(noteId)) return false;
+    _lockedNoteIds.add(noteId);
+    return true;
+  }
+  
+  static void unlock(String? noteId) {
+    if (noteId != null) _lockedNoteIds.remove(noteId);
+  }
+}
+
 /// Full-screen note detail/edit screen
 class NoteDetailScreen extends StatefulWidget {
   final NoteModel? note;
@@ -25,6 +41,8 @@ class NoteDetailScreen extends StatefulWidget {
 class _NoteDetailScreenState extends State<NoteDetailScreen> {
   late TextEditingController _titleController;
   late TextEditingController _contentController;
+  late FocusNode _titleFocusNode;
+  late FocusNode _contentFocusNode;
   late List<String> _tags;
   late List<String> _originalTags; // Track original tags for analytics
   late String _originalTitle; // Track original title
@@ -34,27 +52,62 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   bool _hasChanges = false;
   NoteModel? _note;
   List<String> _newTags = [];
-
-  bool get _isNewNote => widget.note == null;
+  bool _isNewNote = false; // Track if this is a new unsaved note
+  bool _hasSaved = false; // Track if save was already performed (prevents double-save on back)
+  DateTime? _lastSaveAttempt; // Debounce rapid save taps
+  static const _saveDebounceMs = 500; // Minimum ms between save attempts
+  
+  // Entity detection cache for performance with long content
+  String? _cachedEntityContent;
+  List<DetectedEntity> _cachedEntities = [];
   
   /// Check if content actually changed (not just opened for edit)
   bool get _hasActualContentChanges {
     final currentTitle = _titleController.text.trim();
     final currentContent = _contentController.text.trim();
-    return currentTitle != _originalTitle || currentContent != _originalContent;
+    
+    // Check title and content changes
+    if (currentTitle != _originalTitle || currentContent != _originalContent) {
+      return true;
+    }
+    
+    // Check tag changes
+    if (_tags.length != _originalTags.length) {
+      return true;
+    }
+    final originalSet = Set.from(_originalTags);
+    final currentSet = Set.from(_tags);
+    if (!originalSet.containsAll(currentSet) || !currentSet.containsAll(originalSet)) {
+      return true;
+    }
+    
+    return false;
   }
 
   @override
   void initState() {
     super.initState();
     _note = widget.note;
-    _originalTitle = _note?.title ?? '';
-    _originalContent = _note?.content ?? '';
-    _titleController = TextEditingController(text: _originalTitle);
-    _contentController = TextEditingController(text: _originalContent);
+    _isNewNote = widget.note == null; // Set once at init, updated after first save
+    
+    // Try to acquire lock for this note (prevents concurrent edits on same device)
+    if (!_NoteEditLock.tryLock(_note?.id)) {
+      // Note is already being edited elsewhere - show read-only
+      // This is a rare edge case, handled gracefully
+      debugPrint('Note ${_note?.id} is already being edited');
+    }
+    
+    // Store trimmed versions for consistent comparison
+    _originalTitle = (_note?.title ?? '').trim();
+    _originalContent = (_note?.content ?? '').trim();
+    // Initialize controllers with original (potentially untrimmed) values for editing
+    _titleController = TextEditingController(text: _note?.title ?? '');
+    _contentController = TextEditingController(text: _note?.content ?? '');
+    _titleFocusNode = FocusNode();
+    _contentFocusNode = FocusNode();
     _tags = List.from(_note?.tags ?? []);
     _originalTags = List.from(_note?.tags ?? []); // Store original for analytics
-    _isEditing = true; // Always start in edit mode
+    _isEditing = _isNewNote; // Only start in edit mode for new notes
 
     _titleController.addListener(_onContentChanged);
     _contentController.addListener(_onContentChanged);
@@ -64,23 +117,56 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   }
 
   void _onContentChanged() {
-    if (!_hasChanges) {
+    // Check if content actually changed from original
+    final hasActualChanges = _hasActualContentChanges;
+    if (hasActualChanges != _hasChanges) {
       setState(() {
-        _hasChanges = true;
+        _hasChanges = hasActualChanges;
       });
     }
   }
 
   @override
   void dispose() {
+    // Release note edit lock
+    _NoteEditLock.unlock(_note?.id);
+    
     _titleController.dispose();
     _contentController.dispose();
+    _titleFocusNode.dispose();
+    _contentFocusNode.dispose();
     super.dispose();
   }
 
   void _toggleEdit() {
     setState(() {
       _isEditing = !_isEditing;
+    });
+    
+    // Auto-focus content field when entering edit mode
+    if (_isEditing) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _contentFocusNode.requestFocus();
+      });
+    }
+  }
+
+  /// Get cached entities for content (avoids re-detecting on every build)
+  List<DetectedEntity> _getCachedEntities(String content) {
+    if (_cachedEntityContent != content) {
+      _cachedEntityContent = content;
+      _cachedEntities = EntityDetectionService.instance.detectEntities(content);
+    }
+    return _cachedEntities;
+  }
+
+  /// Undo all changes and restore original values
+  void _undoChanges() {
+    setState(() {
+      _titleController.text = _originalTitle;
+      _contentController.text = _originalContent;
+      _tags = List.from(_originalTags);
+      _hasChanges = false;
     });
   }
 
@@ -89,9 +175,17 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     // Prevent concurrent saves
     if (_isSaving) return;
     
+    // For new notes that have already been saved, treat as existing note
+    // This prevents duplicate creation when tapping back
+    
     final content = _contentController.text.trim();
     final title = _titleController.text.trim();
-    if (content.isEmpty) return;
+    
+    // Don't save if both title and content are empty
+    if (content.isEmpty && title.isEmpty) return;
+    
+    // Don't save if no actual changes
+    if (!_hasActualContentChanges) return;
 
     setState(() {
       _isSaving = true;
@@ -99,12 +193,22 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
     try {
       if (_isNewNote) {
-        final tags = TaggingService.instance.autoTag(content);
-        await SupabaseService.instance.createNote(
+        // For title-only notes, use title for tagging if content is empty
+        final textToTag = content.isNotEmpty ? content : title;
+        final tags = _tags.isNotEmpty ? _tags : TaggingService.instance.autoTag(textToTag);
+        final savedNote = await SupabaseService.instance.createNote(
           title.isEmpty ? null : title,
           content,
           tags,
         );
+        
+        // Update state to prevent duplicate saves
+        _note = savedNote;
+        _isNewNote = false;
+        _originalTitle = title;
+        _originalContent = content;
+        _originalTags = List.from(tags);
+        _tags = List.from(tags);
       } else if (_note != null) {
         // Log tag corrections before saving (existing notes only)
         await _logTagCorrections();
@@ -118,7 +222,22 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           lastEdited: _hasActualContentChanges ? now : _note!.lastEdited,
           lastAccessed: now,   // Always update accessed time
         );
-        await SupabaseService.instance.updateNote(updatedNote);
+        final savedNote = await SupabaseService.instance.updateNote(updatedNote);
+        _note = savedNote;
+        _originalTitle = title;
+        _originalContent = content;
+        _originalTags = List.from(_tags);
+      }
+      
+      // Show saved confirmation
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Note saved'),
+            backgroundColor: AppColors.mintGlow.withValues(alpha: 0.9),
+            duration: const Duration(seconds: 1),
+          ),
+        );
       }
     } catch (e) {
       // Silently ignore save errors on back navigation
@@ -126,17 +245,31 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       if (mounted) {
         setState(() {
           _isSaving = false;
+          _hasChanges = false;
+          _hasSaved = true; // Mark as saved so PopScope returns true
         });
       }
     }
   }
 
   Future<void> _save() async {
+    // Prevent concurrent saves
+    if (_isSaving) return;
+    
+    // Debounce rapid taps (within 500ms)
+    final now = DateTime.now();
+    if (_lastSaveAttempt != null && 
+        now.difference(_lastSaveAttempt!).inMilliseconds < _saveDebounceMs) {
+      return;
+    }
+    _lastSaveAttempt = now;
+    
     final content = _contentController.text.trim();
     final title = _titleController.text.trim();
 
-    if (content.isEmpty) {
-      _showError('Note cannot be empty');
+    // Require at least title or content
+    if (content.isEmpty && title.isEmpty) {
+      _showError('Note cannot be completely empty');
       return;
     }
 
@@ -146,13 +279,43 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
     try {
       if (_isNewNote) {
-        // Auto-tag new note
-        final tags = TaggingService.instance.autoTag(content);
-        await SupabaseService.instance.createNote(
+        // Auto-tag new note if no tags set
+        // For title-only notes, use title for tagging if content is empty
+        final textToTag = content.isNotEmpty ? content : title;
+        final tags = _tags.isNotEmpty ? _tags : TaggingService.instance.autoTag(textToTag);
+        final savedNote = await SupabaseService.instance.createNote(
           title.isEmpty ? null : title,
           content,
           tags,
         );
+        
+        if (mounted) {
+          // Update state to prevent duplicate saves
+          setState(() {
+            _note = savedNote;
+            _isNewNote = false;
+            _isEditing = false;
+            _isSaving = false;
+            _hasChanges = false;
+            _hasSaved = true;
+            _originalTitle = title;
+            _originalContent = content;
+            _originalTags = List.from(tags);
+            _tags = List.from(tags);
+          });
+          
+          // Unfocus all fields to dismiss keyboard and exit edit mode
+          _titleFocusNode.unfocus();
+          _contentFocusNode.unfocus();
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Note saved'),
+              backgroundColor: AppColors.mintGlow.withValues(alpha: 0.9),
+              duration: const Duration(seconds: 1),
+            ),
+          );
+        }
       } else if (_note != null) {
         // Log tag corrections before saving (existing notes only)
         await _logTagCorrections();
@@ -166,17 +329,41 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           lastEdited: _hasActualContentChanges ? now : _note!.lastEdited,
           lastAccessed: now,   // Viewing while editing
         );
-        await SupabaseService.instance.updateNote(updatedNote);
-      }
+        final savedNote = await SupabaseService.instance.updateNote(updatedNote);
 
-      if (mounted) {
-        Navigator.of(context).pop(true);
+        if (mounted) {
+          // Exit edit mode and show confirmation
+          setState(() {
+            _note = savedNote;
+            _isEditing = false;
+            _isSaving = false;
+            _hasChanges = false;
+            _hasSaved = true;
+            _originalTitle = title;
+            _originalContent = content;
+            _originalTags = List.from(_tags);
+          });
+          
+          // Unfocus all fields to dismiss keyboard and exit edit mode
+          _titleFocusNode.unfocus();
+          _contentFocusNode.unfocus();
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Note saved'),
+              backgroundColor: AppColors.mintGlow.withValues(alpha: 0.9),
+              duration: const Duration(seconds: 1),
+            ),
+          );
+        }
       }
     } catch (e) {
       _showError('Failed to save: $e');
-      setState(() {
-        _isSaving = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
     }
   }
 
@@ -202,8 +389,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       );
     } catch (e) {
       // Silently ignore analytics errors - don't block save
-      // ignore: avoid_print
-      print('ANALYTICS: Failed to log tag correction: $e');
+      debugPrint('ANALYTICS: Failed to log tag correction: $e');
     }
   }
 
@@ -217,7 +403,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     setState(() {
       _tags.addAll(newTags);
       _newTags = newTags;
-      _hasChanges = true;
+      _hasChanges = _hasActualContentChanges;
     });
 
     // Clear new tag indicators after animation
@@ -233,7 +419,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   void _removeTag(String tag) {
     setState(() {
       _tags.remove(tag);
-      _hasChanges = true;
+      _hasChanges = _hasActualContentChanges;
     });
   }
 
@@ -280,7 +466,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         setState(() {
           _tags.add(tag);
           _newTags = [tag];
-          _hasChanges = true;
+          _hasChanges = _hasActualContentChanges;
         });
 
         Future.delayed(const Duration(milliseconds: 600), () {
@@ -358,14 +544,18 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return; // Already handled
         
-        // Save if there are changes
-        if (_hasChanges && _contentController.text.trim().isNotEmpty) {
+        // Save only if there are actual content changes AND we haven't already saved
+        // _hasSaved prevents double-save when user taps save then immediately taps back
+        // Note: Save if title OR content has text (title-only notes are valid)
+        final hasContent = _contentController.text.trim().isNotEmpty || 
+                          _titleController.text.trim().isNotEmpty;
+        if (!_hasSaved && _hasActualContentChanges && hasContent) {
           await _saveQuietly();
         }
         
         // Now pop with result
         if (context.mounted) {
-          Navigator.of(context).pop(_hasChanges);
+          Navigator.of(context).pop(_hasChanges || _hasSaved);
         }
       },
       child: Scaffold(
@@ -386,13 +576,13 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Title field
-                        _buildTitleSection(),
+                        // Tags section (moved above title)
+                        _buildTagsSection(),
                         
                         const SizedBox(height: 16),
                         
-                        // Tags section
-                        _buildTagsSection(),
+                        // Title field (moved below tags)
+                        _buildTitleSection(),
 
                         const SizedBox(height: 16),
 
@@ -411,15 +601,11 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                             ),
                           ),
                         
-                        // Add space for action chips
-                        const SizedBox(height: 80),
+                        const SizedBox(height: 24),
                       ],
                     ),
                   ),
                 ),
-                
-                // Smart action chips (floating at bottom)
-                _buildSmartActionChips(),
               ],
             ),
           ),
@@ -448,46 +634,38 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           const Spacer(),
 
           // Action buttons
-          if (!_isNewNote) ...[
-            // Edit/Done button
+          // Undo button (show when there are actual changes)
+          if (_hasChanges)
             IconButton(
-              icon: Icon(
-                _isEditing ? Icons.check_rounded : Icons.edit_rounded,
+              icon: const Icon(
+                Icons.undo_rounded,
+                color: AppColors.subtleGray,
+              ),
+              onPressed: _undoChanges,
+              tooltip: 'Undo changes',
+            ),
+          
+          // Save button (show when there are actual changes)
+          if (_hasChanges)
+            IconButton(
+              icon: const Icon(
+                Icons.check_rounded,
                 color: AppColors.softLavender,
               ),
-              onPressed: _isEditing ? _save : _toggleEdit,
+              onPressed: _save,
+              tooltip: 'Save',
             ),
 
-            // Delete button
+          // Delete button (only for existing notes)
+          if (!_isNewNote)
             IconButton(
               icon: const Icon(
                 Icons.delete_outline_rounded,
                 color: AppColors.warmGlow,
               ),
               onPressed: _delete,
+              tooltip: 'Delete note',
             ),
-          ] else ...[
-            // Save button for new note
-            _isSaving
-                ? const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.softLavender,
-                      ),
-                    ),
-                  )
-                : IconButton(
-                    icon: const Icon(
-                      Icons.check_rounded,
-                      color: AppColors.mintGlow,
-                    ),
-                    onPressed: _save,
-                  ),
-          ],
         ],
       ),
     );
@@ -499,6 +677,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: TextField(
         controller: _titleController,
+        focusNode: _titleFocusNode,
         style: AppTypography.heading.copyWith(fontSize: 20),
         cursorColor: AppColors.softLavender,
         decoration: InputDecoration(
@@ -620,6 +799,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
       child: _isEditing
           ? TextField(
               controller: _contentController,
+              focusNode: _contentFocusNode,
               autofocus: _isNewNote,
               maxLines: null,
               minLines: 10,
@@ -634,114 +814,83 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
               ),
             )
           : GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: _toggleEdit,
               child: Container(
                 constraints: const BoxConstraints(minHeight: 200),
                 width: double.infinity,
-                child: Text(
-                  _contentController.text.isEmpty
-                      ? 'Tap to add content...'
-                      : _contentController.text,
-                  style: _contentController.text.isEmpty
-                      ? AppTypography.body.copyWith(
+                child: _contentController.text.isEmpty
+                    ? Text(
+                        'Tap to add content...',
+                        style: AppTypography.body.copyWith(
                           color: AppColors.subtleGray.withValues(alpha: 0.6),
-                        )
-                      : AppTypography.bodyLarge,
-                ),
+                        ),
+                      )
+                    : _buildRichTextWithEntities(),
               ),
             ),
     );
   }
 
-  /// Build smart action chips for detected entities (phone, email, URL)
-  Widget _buildSmartActionChips() {
+  /// Build rich text with clickable entities (phone, email, URL)
+  /// Tapping entities launches them; tapping regular text enters edit mode
+  Widget _buildRichTextWithEntities() {
     final content = _contentController.text;
-    final entities = EntityDetectionService.instance.detectEntities(content);
+    
+    // Use cached entities if content hasn't changed (performance optimization)
+    final entities = _getCachedEntities(content);
     
     if (entities.isEmpty) {
-      return const SizedBox.shrink();
+      // No entities, just plain text - tap anywhere to edit
+      return Text(
+        content,
+        style: AppTypography.bodyLarge,
+      );
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            AppColors.deepIndigo.withValues(alpha: 0.0),
-            AppColors.deepIndigo.withValues(alpha: 0.95),
-            AppColors.deepIndigo,
-          ],
-          stops: const [0.0, 0.3, 1.0],
-        ),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: entities.map((entity) => _buildActionChip(entity)).toList(),
-        ),
-      ),
-    );
-  }
+    // Build TextSpans with clickable entities
+    final spans = <InlineSpan>[];
+    int currentIndex = 0;
 
-  Widget _buildActionChip(DetectedEntity entity) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 10),
-      child: GestureDetector(
-        onTap: () => _launchEntity(entity),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColors.glassTint.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: AppColors.glassHighlight.withValues(alpha: 0.3),
-              width: 1,
+    for (final entity in entities) {
+      // Add text before entity (plain text, tap handled by parent GestureDetector)
+      if (entity.startIndex > currentIndex) {
+        spans.add(TextSpan(
+          text: content.substring(currentIndex, entity.startIndex),
+          style: AppTypography.bodyLarge,
+        ));
+      }
+
+      // Add clickable entity with WidgetSpan to isolate tap handling
+      spans.add(WidgetSpan(
+        alignment: PlaceholderAlignment.baseline,
+        baseline: TextBaseline.alphabetic,
+        child: GestureDetector(
+          onTap: () => _launchEntity(entity),
+          child: Text(
+            entity.value,
+            style: AppTypography.bodyLarge.copyWith(
+              color: AppColors.softLavender,
+              decoration: TextDecoration.underline,
+              decorationColor: AppColors.softLavender,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                entity.icon,
-                style: const TextStyle(fontSize: 16),
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    entity.actionLabel,
-                    style: AppTypography.caption.copyWith(
-                      color: AppColors.softLavender,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 11,
-                    ),
-                  ),
-                  Text(
-                    entity.displayValue.length > 20 
-                        ? '${entity.displayValue.substring(0, 20)}...'
-                        : entity.displayValue,
-                    style: AppTypography.caption.copyWith(
-                      color: AppColors.pearlWhite,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ],
           ),
         ),
-      ),
+      ));
+
+      currentIndex = entity.endIndex;
+    }
+
+    // Add remaining text
+    if (currentIndex < content.length) {
+      spans.add(TextSpan(
+        text: content.substring(currentIndex),
+        style: AppTypography.bodyLarge,
+      ));
+    }
+
+    return Text.rich(
+      TextSpan(children: spans),
     );
   }
 

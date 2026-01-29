@@ -24,46 +24,12 @@ class NoteCard extends StatelessWidget {
     this.onSelectionToggle,
   });
 
-  /// Get glow color - consistent lavender for all notes
-  Color get _glowColor => AppColors.softLavender;
-
-  /// Get glow intensity based on frequency
-  double get _glowIntensity {
-    // More frequently accessed = subtle brighter glow (reduced for consistency)
-    if (note.frequencyCount > 20) return 0.3;
-    if (note.frequencyCount > 10) return 0.2;
-    if (note.frequencyCount > 5) return 0.15;
-    if (note.frequencyCount > 0) return 0.1;
-    return 0.05;
-  }
-
   /// Get formatted time ago string
   /// Get formatted time ago string for last edited
   String get _editedTimeAgo {
     final now = DateTime.now().toLocal();
     final lastEditedLocal = note.lastEdited.toLocal();
     final difference = now.difference(lastEditedLocal);
-
-    if (difference.inMinutes < 1) {
-      return 'just now';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes}m ago';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}d ago';
-    } else if (difference.inDays < 30) {
-      return '${(difference.inDays / 7).floor()}w ago';
-    } else {
-      return '${(difference.inDays / 30).floor()}mo ago';
-    }
-  }
-
-  /// Get formatted time ago string for last viewed
-  String get _viewedTimeAgo {
-    final now = DateTime.now().toLocal();
-    final lastAccessedLocal = note.lastAccessed.toLocal();
-    final difference = now.difference(lastAccessedLocal);
 
     if (difference.inMinutes < 1) {
       return 'just now';
@@ -152,8 +118,6 @@ class NoteCard extends StatelessWidget {
       child: AnimatedGlassCard(
         onTap: onTap,
         onLongPress: onLongPress,
-        glowColor: _glowColor,
-        glowIntensity: _glowIntensity,
         child: Stack(
           children: [
             Column(
@@ -193,7 +157,7 @@ class NoteCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    // Right: View count + last viewed
+                    // Right: View count only (no last viewed time)
                     Row(
                       children: [
                         Icon(
@@ -205,13 +169,6 @@ class NoteCard extends StatelessWidget {
                         Text(
                           '${note.frequencyCount}',
                           style: AppTypography.caption,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '• $_viewedTimeAgo',
-                          style: AppTypography.caption.copyWith(
-                            color: AppColors.softLavender.withValues(alpha: 0.8),
-                          ),
                         ),
                       ],
                     ),
@@ -263,8 +220,6 @@ class NoteCard extends StatelessWidget {
             Expanded(
               child: AnimatedGlassCard(
                 onTap: onSelectionToggle,
-                glowColor: isSelected ? AppColors.softLavender : _glowColor,
-                glowIntensity: isSelected ? 0.4 : _glowIntensity,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

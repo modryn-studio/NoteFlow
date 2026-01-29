@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/analytics_event.dart';
 import '../core/config/supabase_config.dart';
@@ -25,9 +26,13 @@ class AnalyticsService {
   }
 
   /// Ensure box is initialized
+  /// Throws if initialization fails
   Future<Box<TagCorrectionEvent>> _getBox() async {
     if (_box == null || !_box!.isOpen) {
       await initialize();
+    }
+    if (_box == null) {
+      throw StateError('Analytics box failed to initialize');
     }
     return _box!;
   }
@@ -57,8 +62,7 @@ class AnalyticsService {
     await box.add(event);
 
     // Log to console for debugging
-    // ignore: avoid_print
-    print('ANALYTICS: Tag correction logged - ${event.toString()}');
+    debugPrint('ANALYTICS: Tag correction logged - ${event.toString()}');
   }
 
   /// Get all unsynced events
@@ -98,8 +102,7 @@ class AnalyticsService {
         syncedCount++;
       } catch (e) {
         // Log error but continue with other events
-        // ignore: avoid_print
-        print('ANALYTICS: Failed to sync event ${event.eventId}: $e');
+        debugPrint('ANALYTICS: Failed to sync event ${event.eventId}: $e');
       }
     }
 
@@ -152,5 +155,11 @@ class AnalyticsService {
   Future<int> getEventCount() async {
     final box = await _getBox();
     return box.length;
+  }
+
+  /// Dispose resources and close Hive box
+  Future<void> dispose() async {
+    await _box?.close();
+    _box = null;
   }
 }

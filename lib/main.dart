@@ -58,6 +58,8 @@ class NoteFlowApp extends StatefulWidget {
 }
 
 class _NoteFlowAppState extends State<NoteFlowApp> with WidgetsBindingObserver {
+  bool _isDisposed = false;
+  
   @override
   void initState() {
     super.initState();
@@ -67,16 +69,24 @@ class _NoteFlowAppState extends State<NoteFlowApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    // Cleanup Hive resources on app termination
-    LocalStorageService.instance.dispose();
+    _disposeServices();
     super.dispose();
+  }
+
+  /// Safely dispose services only once
+  void _disposeServices() {
+    if (_isDisposed) return;
+    _isDisposed = true;
+    LocalStorageService.instance.dispose();
+    AnalyticsService.instance.dispose();
+    FrequencyTracker.instance.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.detached) {
       // App is being terminated, cleanup resources
-      LocalStorageService.instance.dispose();
+      _disposeServices();
     }
   }
 

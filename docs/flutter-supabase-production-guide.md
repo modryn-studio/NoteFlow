@@ -1,7 +1,9 @@
 # Complete Flutter + Supabase Production Workflow
 ## From Development to Play Store
 
-**This guide is optimized for solo developers shipping their first Play Store app with Flutter + Supabase.**
+**This guide is optimized for solo developers shipping their first Play Store app with Flutter + Supabase using a Google Play organization account.**
+
+> **Note:** This guide assumes you're registering as an organization (LLC). Organization accounts can submit directly to production **after verification**, though Google may still temporarily gate production access on first app submission if additional trust signals are required (this does not require closed testing). Personal developer accounts (created after November 2023) must complete 14 days of closed testing with at least 20 testers before production access.
 
 ---
 
@@ -21,7 +23,7 @@ final supabase = Supabase.instance.client;
 await Supabase.initialize(
   url: 'https://your-project.supabase.co',
   anonKey: 'your-anon-key',
-  debug: true, // Shows helpful logs
+  debug: true, // Shows helpful logs (may change in future SDK versions)
 );
 ```
 
@@ -33,13 +35,14 @@ flutter run
 r  # Instant updates
 ```
 
-### Timeline Expectations (Solo Dev)
+### Timeline Expectations (Organization Account)
 
 **From ready-to-submit to live:**
 - Setup keystore: 30 minutes (one-time)
-- Internal testing: 2-3 days (you + family testing via Play Store)
+- Optional internal testing: 2-3 days (recommended for your own confidence)
+- Organization verification: 1-3 days (one-time, before first app)
 - Play Store submission: 1-3 days (Google review)
-- **Total: ~1 week after your app is ready**
+- **Total: ~1 week after your app is ready (or 3-5 days if skipping internal testing)**
 
 **For updates:**
 - Code changes: Minutes to hours (your pace)
@@ -49,12 +52,15 @@ r  # Instant updates
 
 ### When You're Ready for Production
 
-**Minimum Requirements:**
-1. App works on your phone
-2. App works on second phone
-3. No crashes during basic use
-4. Privacy policy URL (see Phase 3)
-5. Keystore generated (see below)
+**Minimum Requirements (Organization Account):**
+1. Organization account verified (D-U-N-S number, LLC docs - one-time setup)
+2. App works on your phone
+3. App works on second phone
+4. No crashes during basic use
+5. Privacy policy URL (see Phase 3)
+6. Keystore generated (see below)
+
+**Organization Account Advantage:** No mandatory 14-day testing period. You can submit directly to production after verification. Internal testing is still recommended for your own confidence, but not required by Google.
 
 That's it. Everything else can be fixed in updates.
 
@@ -84,7 +90,7 @@ final supabase = Supabase.instance.client;
 await Supabase.initialize(
   url: 'https://your-project.supabase.co',
   anonKey: 'your-anon-key',
-  debug: kDebugMode, // Auto-enables logging in debug only
+  debug: kDebugMode, // Auto-enables logging in debug only (may change in future SDK versions)
 );
 ```
 
@@ -93,42 +99,94 @@ await Supabase.initialize(
 - Even if you accidentally push to production, RLS prevents data leaks
 - One project = simpler, no environment switching confusion
 
-#### When to Create Separate Production Project
+#### Internal Testing Setup: Separate Dev/Main Projects
 
-Create a second Supabase project **only when:**
-- You're submitting to Play Store AND want isolated production data, OR
-- You have > 50 active users and need production stability
+**When doing internal testing**, use two Supabase projects (both free tier):
+- **DEV project**: Your local debugging (`flutter run`)
+- **MAIN project**: Internal testers' builds
 
-For most solo developers, this happens months after initial launch.
+This prevents your test data from mixing with testers' data.
 
-#### Upgrade Path (Later)
+**Setup:**
 
-When you need separate environments:
+1. **Create dev project** at supabase.com
+   - Name: `yourapp-dev`
+   - Copy URL and anon key
 
+2. **Update your code** (lib/core/config/supabase_config.dart):
 ```dart
-// lib/core/supabase_client.dart
 class SupabaseConfig {
-  static const supabaseUrl = String.fromEnvironment(
-    'SUPABASE_URL',
-    defaultValue: 'https://your-dev.supabase.co', // Your original project
-  );
-  
-  static const supabaseAnonKey = String.fromEnvironment(
-    'SUPABASE_ANON_KEY',
-    defaultValue: 'your-dev-anon-key',
-  );
+  static String get supabaseUrl {
+    const envUrl = String.fromEnvironment('SUPABASE_URL');
+    if (envUrl.isNotEmpty) return envUrl;
+    
+    final url = dotenv.env['SUPABASE_URL'];
+    if (url == null || url.isEmpty) {
+      throw SupabaseConfigException('SUPABASE_URL not configured');
+    }
+    return url;
+  }
+
+  static String get supabaseKey {
+    const envKey = String.fromEnvironment('SUPABASE_KEY');
+    if (envKey.isNotEmpty) return envKey;
+    
+    final key = dotenv.env['SUPABASE_KEY'];
+    if (key == null || key.isEmpty) {
+      throw SupabaseConfigException('SUPABASE_KEY not configured');
+    }
+    return key;
+  }
+
+  static Future<void> initialize() async {
+    await Supabase.initialize(url: supabaseUrl, anonKey: supabaseKey);
+  }
 }
-
-// Run with dev (default)
-flutter run
-
-// Run with production
-flutter run --release \
-  --dart-define=SUPABASE_URL=https://your-prod.supabase.co \
-  --dart-define=SUPABASE_ANON_KEY=your-prod-anon-key
 ```
 
-**Skip flavor-based configuration** - that's for teams with complex deployment pipelines.
+3. **Create .env file** (dev project credentials):
+```bash
+# .env (gitignored)
+SUPABASE_URL=https://your-dev-project.supabase.co
+SUPABASE_KEY=your-dev-anon-key
+```
+
+4. **Create build_internal.bat** (main project credentials):
+```batch
+@echo off
+set MAIN_URL=https://your-main-project.supabase.co
+set MAIN_KEY=your-main-anon-key
+
+flutter build appbundle --release ^
+  --dart-define=SUPABASE_URL=%MAIN_URL% ^
+  --dart-define=SUPABASE_KEY=%MAIN_KEY%
+
+echo Upload: build\app\outputs\bundle\release\app-release.aab
+pause
+```
+
+5. **Copy schema to dev project**:
+   - Run your `schema.sql` in dev project SQL Editor
+   - Enable Anonymous Sign-in in both projects
+
+**Schema Changes Workflow:**
+
+When adding tables/columns:
+
+1. Create migration file: `supabase/migrations/001_add_feature.sql`
+2. Run in **DEV** project → test with `flutter run`
+3. When ready to release:
+   - Run migration in **MAIN** project SQL Editor
+   - Verify tables exist
+   - Update pubspec.yaml version
+   - Run `build_internal.bat`
+   - Upload to Play Console
+
+**Daily workflow:**
+- `flutter run` → uses .env → DEV project
+- `build_internal.bat` → uses --dart-define → MAIN project
+
+**Alternative:** Pay for Supabase Pro ($25/month) to use branches instead of separate projects.
 
 ### 2. Android Release Signing Setup (One-Time)
 
@@ -329,19 +387,26 @@ That's it. You'll naturally discover other issues through normal use.
 
 ---
 
-## PHASE 2: Internal Testing Track (The Best Way to Test)
+## PHASE 2: Internal Testing Track (Optional for Both Account Types)
 
 ### Why Use Internal Testing?
 
-**Advantages:**
+**For Organization Accounts:** Internal testing is completely optional. You can publish directly to production after verification.
+
+**For Personal Accounts:** Closed testing is required for 14 days with 20+ testers before production access. Internal testing is one way to satisfy this requirement.
+
+> **Note:** Internal testing does **not** count as closed testing unless explicitly configured as a closed track.
+
+**Why you should still consider internal testing (either account type):**
 - ✅ Signed by Google (production signing)
 - ✅ Installed via Play Store (real user experience)
 - ✅ Tests update flow when you push new versions
 - ✅ Tests on real Play Store infrastructure
 - ✅ Easy sharing with family/beta testers via link
 - ✅ Catches issues before public release
+- ✅ Builds confidence before going live publicly
 
-**Perfect for solo developers** testing with family/friends before going public.
+**Perfect for solo developers** who want to test with family/friends before going public. **Skip this if you're confident** and want to launch immediately.
 
 ### Setup Internal Testing (One-Time)
 
@@ -365,8 +430,12 @@ play.google.com/console
 
 #### 3. Build and Upload
 ```bash
-# Build app bundle (required for Play Store)
-flutter build appbundle --release
+# If using separate dev/main projects:
+# Run build_internal.bat (uses main project)
+.\build_internal.bat
+
+# OR if single project:
+# flutter build appbundle --release
 
 # File location
 build/app/outputs/bundle/release/app-release.aab
@@ -413,9 +482,10 @@ After Making an Update:
 
 ## ✅ IS MY APP READY FOR PRODUCTION?
 
-Before submitting to Play Store, verify these basics:
+**Organization Account Checklist:**
 
 ```
+[ ] Organization account verified (one-time: D-U-N-S, LLC docs)
 [ ] App doesn't crash on my phone
 [ ] App doesn't crash on second phone (wife/friend)
 [ ] Login/signup works
@@ -426,7 +496,55 @@ Before submitting to Play Store, verify these basics:
 [ ] Screenshots prepared (at least 2)
 ```
 
-**That's it.** Everything else (edge cases, polish, optimization) can be fixed in updates after launch.
+**That's it.** With an org account, you can submit directly to production once verified. No mandatory closed testing period.
+
+**Personal Account:** If using a personal account instead, you must complete 14 days of closed testing with 20+ active testers before production access becomes available.
+
+**Optional but recommended (both account types):** Test via Internal Testing track for 2-3 days for added confidence before public launch.
+
+---
+
+## PHASE 2.5: Organization Account Setup (One-Time, Before First App)
+
+**If you haven't set up your organization account yet**, you'll need to complete this before your first production submission:
+
+### Organization Account Requirements
+
+1. **Legal Entity Formation**
+   - Form a Wisconsin LLC (~$130, same-day approval online)
+   - Get stamped Articles of Organization from Department of Financial Institutions
+   - Annual maintenance: $25 annual report
+
+2. **D-U-N-S Number** (Start this first - takes longest)
+   - Apply at dnb.com/duns/get-a-duns.html (free)
+   - Takes up to 30 days to process
+   - Must match LLC name exactly
+
+3. **EIN (Employer Identification Number)**
+   - Apply at irs.gov/EIN (free, instant)
+   - Get CP 575 confirmation letter
+   - Apply after LLC is formed
+
+4. **Website Verification**
+   - Verify your domain in Google Search Console
+   - Website should show business name and contact info
+
+5. **Create Organization Developer Account**
+   - Use new Google account (separate from personal)
+   - Select "Organization" account type
+   - Enter D-U-N-S number in Google Payments profile
+   - Upload verification documents: Articles of Organization, EIN letter
+   - Upload government ID (color photo)
+   - Pay $25 registration fee
+
+6. **Wait for Verification**
+   - Typically 1-3 days
+   - Google reviews your documents
+   - Once approved, you can publish immediately
+
+**Timeline:** 4-5 weeks total (mostly waiting for D-U-N-S number)
+
+**Total Cost:** $155 one-time ($130 LLC + $25 Google Play)
 
 ---
 
@@ -549,7 +667,7 @@ Security practices:
 ✓ Data is encrypted in transit
 ✓ Data is encrypted at rest
 ✓ Users can request data deletion
-✓ Committed to Google Play's Families Policy
+✓ Not subject to Families Policy (18+ audience)
 ```
 
 #### 4. Content Rating
@@ -722,26 +840,22 @@ version: 2.0.0+4
 # 2. Update version in pubspec.yaml
 version: 1.0.1+2  # Bug fix example
 
-# 3. Test in debug mode
+# 3. Test in debug mode (uses DEV project if using separate projects)
 flutter run
 # Test changes thoroughly
 
-# 4. (Optional) Test release mode locally
-flutter build apk --release
-flutter run --release --uninstall-first
-# Quick sanity check
+# 4. If using separate dev/main projects:
+# Apply any schema migrations to MAIN project first!
+# Run new migration SQL in MAIN project SQL Editor
 
-# 5. (Recommended) Push to Internal Testing first
-flutter build appbundle --release
-# Upload to Internal Testing track
-# Test on devices via Play Store
-# Verify update works correctly
+# 5. Build for internal testing
+.\build_internal.bat  # If using separate projects
+# OR: flutter build appbundle --release
 
-# 6. Promote to Production
-# Play Console → Internal Testing → Promote to Production
-# OR upload directly to Production
-
-# Release notes example:
+# 6. Upload to Play Console
+→ Internal testing → Create new release
+→ Upload app-release.aab
+→ Add release notes:
 "
 Version 1.0.1
 
@@ -753,11 +867,7 @@ What's New:
 Thanks for your feedback!
 "
 
-# 7. Roll out
-→ Release to 100% (for early users)
-→ Monitor Play Console for crashes
-
-# Note: When you have 1000+ users, consider staged rollouts (10% → 50% → 100%)
+# 7. Roll out to 100%
 ```
 
 ### User Update Experience
@@ -921,9 +1031,10 @@ supabase login
 # Backup database
 supabase db dump -f backup-$(date +%Y%m%d).sql --project-ref your-project-ref
 
-# Restore (if needed)
-supabase db reset --project-ref your-project-ref
+# Restore manually (production-safe)
 psql -h your-db-host -U postgres -d postgres -f backup-20240127.sql
+
+# ⚠️ Never run `supabase db reset` against a production project - it WILL WIPE DATA
 ```
 
 ---
@@ -944,8 +1055,8 @@ Solution:
 ```
 Cause: ProGuard/R8 code shrinking removing needed code
 Solution:
-1. Ensure you have android/app/proguard-rules.pro file
-2. Add these rules:
+1. Only add these rules if you experience release-only crashes
+2. Create android/app/proguard-rules.pro file with:
 
 -keep class io.supabase.** { *; }
 -keep class com.google.gson.** { *; }
@@ -977,7 +1088,7 @@ Cause: Deep link not configured
 Solution:
 1. Check AndroidManifest.xml has intent-filter
 2. Verify scheme matches Supabase settings
-3. Test: adb shell am start -a android.intent.action.VIEW -d "com.yourapp.noteflow://login"
+3. Test: adb shell am start -a android.intent.action.VIEW -d "com.yourapp.noteflow://auth"
 ```
 
 ### Issue: "Data not syncing in production"
@@ -986,7 +1097,7 @@ Checklist:
 [ ] Using production Supabase URL/key
 [ ] RLS policies are set correctly
 [ ] Internet permission in AndroidManifest
-[ ] Supabase project is active (not paused)
+[ ] Supabase project is active (free tier pauses after inactivity, but production traffic prevents this)
 [ ] Check Supabase dashboard logs
 ```
 
@@ -1102,13 +1213,30 @@ Google Play Console:
 ❌ Submit without privacy policy
 ❌ Ignore Play Console pre-launch reports
 
-### Timeline Expectations (Solo Developer):
-- Development: Weeks to months (your pace)
-- Internal testing: 2-3 days (you + family)
-- First Play Store review: 1-3 days
-- **Total ready-to-live: ~1 week**
+### Timeline Expectations:
 
+**Organization Account:**
+- Organization setup: 4-5 weeks (one-time, mostly D-U-N-S wait)
+- Development: Weeks to months (your pace)
+- Optional internal testing: 2-3 days (recommended but not required)
+- First Play Store review: 1-3 days
+- **Total ready-to-live: ~3-7 days after org verification**
+
+**Personal Account (for comparison):**
+- Development: Weeks to months (your pace)
+- Mandatory closed testing: 14 days with 20+ testers
+- First Play Store review: 1-3 days
+- **Total ready-to-live: ~17+ days minimum**
+
+**Updates (both account types):**
 - Subsequent updates: Same day to 1 day
 - User adoption: Gradual, be patient
+
+### Organization Account Benefits:
+✅ No mandatory 14-day closed testing period
+✅ Can publish to production immediately after verification
+✅ Professional business name displayed (not personal info)
+✅ Liability protection through LLC structure
+✅ Immediate production access for urgent updates
 
 You're ready to ship! 🚀

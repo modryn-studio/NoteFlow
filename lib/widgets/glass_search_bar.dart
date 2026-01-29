@@ -5,6 +5,7 @@ import '../core/theme/app_theme.dart';
 /// Glassmorphic floating search bar
 class GlassSearchBar extends StatefulWidget {
   final TextEditingController? controller;
+  final FocusNode? focusNode;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
   final VoidCallback? onClear;
@@ -13,6 +14,7 @@ class GlassSearchBar extends StatefulWidget {
   const GlassSearchBar({
     super.key,
     this.controller,
+    this.focusNode,
     this.onChanged,
     this.onSubmitted,
     this.onClear,
@@ -94,10 +96,12 @@ class _GlassSearchBarState extends State<GlassSearchBar> {
                 Expanded(
                   child: TextField(
                     controller: _controller,
+                    focusNode: widget.focusNode,
                     onChanged: widget.onChanged,
                     onSubmitted: widget.onSubmitted,
                     style: AppTypography.body,
                     cursorColor: AppColors.softLavender,
+                    enableInteractiveSelection: true,
                     decoration: InputDecoration(
                       hintText: widget.hintText,
                       hintStyle: AppTypography.body.copyWith(
