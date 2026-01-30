@@ -220,36 +220,41 @@ key.properties
 *.keystore
 ```
 
-#### Configure android/app/build.gradle
-```gradle
+#### Configure android/app/build.gradle.kts
+```kotlin
 // Add before android block
-def keystoreProperties = new Properties()
-def keystorePropertiesFile = rootProject.file('key.properties')
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
 
 android {
     // ... existing config ...
     
     signingConfigs {
-        release {
-            keyAlias keystoreProperties['keyAlias']
-            keyPassword keystoreProperties['keyPassword']
-            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
-            storePassword keystoreProperties['storePassword']
+        create("release") {
+            keyAlias = keystoreProperties["keyAlias"] as String
+            keyPassword = keystoreProperties["keyPassword"] as String
+            storeFile = file(keystoreProperties["storeFile"] as String)
+            storePassword = keystoreProperties["storePassword"] as String
         }
     }
     
     buildTypes {
         release {
-            signingConfig signingConfigs.release
+            signingConfig = signingConfigs.getByName("release")
+            
+            // Disable minification for Flutter apps with Supabase/JSON serialization
+            // R8 obfuscation can break JSON parsing, and APK size increase is minimal (1-3 MB)
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
 ```
 
-**Note:** Flutter enables ProGuard/R8 code shrinking by default in release builds. Most apps work fine without custom rules. If you encounter crashes in release mode (but not debug), see the Troubleshooting section for ProGuard configuration.
+**Why disable minification?** Flutter apps are already compiled to native code. R8/ProGuard only affects the small Android wrapper layer. For apps using JSON serialization (Supabase, Firebase, etc.), minification often breaks field name mapping, causing silent failures in release builds. The APK size increase (~1-3 MB) is negligible compared to debugging cryptic release-only bugs.
 
 ### 3. App Configuration
 
@@ -592,6 +597,23 @@ You MUST have a publicly accessible privacy policy URL before submitting to Play
 ```
 
 **Option 2: GitHub Pages (DIY - 5 minutes)**
+
+**Option A: Using your existing NoteFlow repo (easiest)**
+If you already have a `docs/privacy-policy.html` file:
+
+```bash
+1. Go to your NoteFlow repo → Settings → Pages
+2. Source: "Deploy from a branch"
+3. Branch: main → /docs folder
+4. Save
+
+Your URL will be:
+https://modryn-studio.github.io/NoteFlow/privacy-policy.html
+
+5. Add this URL to Play Console → App Content → Privacy Policy
+```
+
+**Option B: Separate privacy policy repo**
 ```html
 <!-- Create privacy.html file -->
 <!DOCTYPE html>
@@ -633,11 +655,11 @@ You MUST have a publicly accessible privacy policy URL before submitting to Play
 
 ```bash
 # Upload to GitHub
-1. Create new repo (can be private)
-2. Upload privacy.html
+1. Create new repo (e.g., "noteflow-privacy")
+2. Rename privacy.html to index.html (for clean URL)
 3. Go to Settings → Pages
 4. Enable Pages from main branch
-5. Your URL: https://yourusername.github.io/reponame/privacy.html
+5. Your URL: https://yourusername.github.io/noteflow-privacy/
 6. Paste this URL into Play Console
 ```
 
@@ -1051,33 +1073,43 @@ Solution:
 4. Don't regenerate keystore (you'll lose ability to update)
 ```
 
-### Issue: "Release build crashes but debug works"
+### Issue: "Release build crashes/fails but debug works"
 ```
-Cause: ProGuard/R8 code shrinking removing needed code
-Solution:
-1. Only add these rules if you experience release-only crashes
-2. Create android/app/proguard-rules.pro file with:
+Cause: R8 code shrinking obfuscating JSON field names, breaking Supabase/serialization
 
--keep class io.supabase.** { *; }
--keep class com.google.gson.** { *; }
--keep class com.yourapp.models.** { *; }
--keepattributes *Annotation*
--keepattributes Signature
--keepattributes Exception
-
-# Prevent obfuscation of database models
--keepclassmembers class * {
-    @com.google.gson.annotations.SerializedName <fields>;
-}
-
-3. Update android/app/build.gradle release buildType:
+Solution (Recommended): Disable minification in build.gradle.kts
 
 buildTypes {
     release {
-        signingConfig signingConfigs.release
-        minifyEnabled true
-        shrinkResources true
-        proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        signingConfig = signingConfigs.getByName("release")
+        isMinifyEnabled = false
+        isShrinkResources = false
+    }
+}
+
+Why this works:
+- Flutter apps are already compiled - minification only affects tiny Android wrapper
+- APK size increase is minimal (1-3 MB)
+- No complex ProGuard rules to maintain
+- JSON serialization just works
+- Many production Flutter apps use this approach
+
+Alternative (Advanced): If you MUST use minification (rare for Flutter apps):
+1. Create android/app/proguard-rules.pro:
+
+-keep class io.supabase.** { *; }
+-keep class com.google.gson.** { *; }
+-keepattributes *Annotation*
+-keepattributes Signature
+
+2. Enable in build.gradle.kts:
+
+buildTypes {
+    release {
+        signingConfig = signingConfigs.getByName("release")
+        isMinifyEnabled = true
+        isShrinkResources = true
+        proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
     }
 }
 ```

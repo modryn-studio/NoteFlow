@@ -398,8 +398,8 @@ class _HomeScreenState extends State<HomeScreen> {
     // Ignore errors since this is non-critical
     unawaited(
       FrequencyTracker.instance.trackNoteOpen(note.id).catchError((error) {
-        // Silently log tracking errors
-        debugPrint('INFO: Failed to track note open (note may have been deleted): $error');
+        // Silently handle tracking errors (non-critical feature)
+        debugPrint('Failed to track note open: $error');
         return note; // Return original note on error
       }),
     );

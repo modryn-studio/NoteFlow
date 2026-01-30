@@ -51,6 +51,11 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
+            
+            // Disable minification to prevent ProGuard from breaking Supabase JSON parsing
+            // For a small app like NoteFlow, the APK size increase is negligible
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }

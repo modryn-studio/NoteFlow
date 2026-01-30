@@ -48,8 +48,6 @@ lib/
 supabase/
 └── schema.sql               # Database schema with RLS policies
 
-docs/
-└── Github_Issues_Workflow.md  # Two-agent development workflow
 ```
 
 ## License
