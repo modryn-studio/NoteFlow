@@ -36,7 +36,8 @@ CREATE TABLE public.notes (
     frequency_count INTEGER DEFAULT 0,
     last_accessed TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    last_edited TIMESTAMPTZ DEFAULT NOW()
+    last_edited TIMESTAMPTZ DEFAULT NOW(),
+    title TEXT
 );
 
 -- Create analytics_tag_corrections table
@@ -58,6 +59,7 @@ CREATE TABLE public.analytics_tag_corrections (
 CREATE INDEX idx_notes_user_id ON public.notes(user_id);
 CREATE INDEX idx_notes_last_accessed ON public.notes(last_accessed DESC);
 CREATE INDEX idx_notes_created_at ON public.notes(created_at DESC);
+CREATE INDEX idx_notes_title ON public.notes(title);
 
 -- Analytics table indexes
 CREATE INDEX idx_tag_corrections_user ON public.analytics_tag_corrections(user_id);

@@ -394,15 +394,13 @@ class _HomeScreenState extends State<HomeScreen> {
     // Unfocus search bar again after returning to prevent auto-focus
     _searchFocusNode.unfocus();
 
-    // Track frequency in background (fire-and-forget, don't block UI)
+    // Track frequency and wait for completion so UI shows updated count on return
     // Ignore errors since this is non-critical
-    unawaited(
-      FrequencyTracker.instance.trackNoteOpen(note.id).catchError((error) {
-        // Silently handle tracking errors (non-critical feature)
-        debugPrint('Failed to track note open: $error');
-        return note; // Return original note on error
-      }),
-    );
+    await FrequencyTracker.instance.trackNoteOpen(note.id).catchError((error) {
+      // Silently handle tracking errors (non-critical feature)
+      debugPrint('Failed to track note open: $error');
+      return note; // Return original note on error
+    });
 
     // Check if search query changed during navigation
     final searchQueryAfterNav = _searchQuery;
