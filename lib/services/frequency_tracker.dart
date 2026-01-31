@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/note_model.dart';
 import 'supabase_service.dart';
@@ -11,6 +12,9 @@ class FrequencyTracker {
 
   static const String _boxName = 'frequency_tracking';
   Box<int>? _box;
+  
+  /// Track pending frequency updates to prevent race conditions
+  final Map<String, Completer<NoteModel>?> _pendingTracking = {};
 
   /// Initialize Hive box for local frequency tracking
   Future<void> initialize() async {
@@ -37,22 +41,38 @@ class FrequencyTracker {
   /// Track note open - updates both local and remote
   /// Returns updated note on success, throws on failure
   /// If remote update fails, local increment is rolled back to maintain consistency
+  /// Prevents race conditions by serializing concurrent calls for the same note
   Future<NoteModel> trackNoteOpen(String noteId) async {
-    // Get current local count before incrementing
-    final previousCount = getLocalFrequency(noteId);
+    // If already tracking this note, wait for existing operation to prevent race condition
+    if (_pendingTracking[noteId] != null) {
+      return await _pendingTracking[noteId]!.future;
+    }
     
-    // Update local tracking (always succeeds)
-    await incrementLocalFrequency(noteId);
-
+    final completer = Completer<NoteModel>();
+    _pendingTracking[noteId] = completer;
+    
     try {
-      // Update remote (Supabase) - may fail on network issues
-      return await SupabaseService.instance.updateFrequency(noteId);
-    } catch (e) {
-      // Rollback local increment to maintain consistency
-      if (_box != null) {
-        await _box!.put(noteId, previousCount);
+      // Get current local count before incrementing
+      final previousCount = getLocalFrequency(noteId);
+      
+      // Update local tracking (always succeeds)
+      await incrementLocalFrequency(noteId);
+
+      try {
+        // Update remote (Supabase) - may fail on network issues
+        final result = await SupabaseService.instance.updateFrequency(noteId);
+        completer.complete(result);
+        return result;
+      } catch (e) {
+        // Rollback local increment to maintain consistency
+        if (_box != null) {
+          await _box!.put(noteId, previousCount);
+        }
+        completer.completeError(e);
+        rethrow;
       }
-      rethrow;
+    } finally {
+      _pendingTracking.remove(noteId);
     }
   }
 

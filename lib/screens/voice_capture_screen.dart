@@ -168,9 +168,11 @@ class _VoiceCaptureScreenState extends State<VoiceCaptureScreen>
   void dispose() {
     _textController.dispose();
     _fadeController.dispose();
-    // Cancel speech service synchronously (best effort)
-    // Note: Can't await in dispose, but cancelListening is fast
-    _speechService.cancelListening();
+    // Cancel speech service - fire and forget (best effort)
+    // Catch any errors to prevent dispose from throwing
+    _speechService.cancelListening().catchError((e) {
+      // Silently ignore errors during cleanup
+    });
     super.dispose();
   }
 

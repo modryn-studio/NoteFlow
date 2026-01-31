@@ -271,9 +271,6 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
     } catch (e) {
-      // Dispose the progress notifier
-      progressNotifier.dispose();
-
       // Close progress dialog
       if (mounted) {
         navigator.pop();
@@ -290,6 +287,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // Reload notes to restore state
       await _loadNotes();
+    } finally {
+      // Ensure progress notifier is always disposed
+      progressNotifier.dispose();
     }
   }
 
@@ -414,6 +414,8 @@ class _HomeScreenState extends State<HomeScreen> {
     // Only re-apply search if query hasn't changed during async operations
     if (searchQueryAfterNav.isNotEmpty &&
         searchQueryBeforeNav == searchQueryAfterNav) {
+      // Extra mounted check before modifying state
+      if (!mounted) return;
       _searchNotes(searchQueryAfterNav);
     }
   }
@@ -478,10 +480,24 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: !_isSelectionMode,
+      canPop: !_isSelectionMode && !_searchFocusNode.hasFocus && _searchQuery.isEmpty,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && _isSelectionMode) {
-          _exitSelectionMode();
+        if (!didPop) {
+          // Priority 1: Exit selection mode
+          if (_isSelectionMode) {
+            _exitSelectionMode();
+          }
+          // Priority 2: Close keyboard if search is focused
+          else if (_searchFocusNode.hasFocus) {
+            setState(() {
+              _searchFocusNode.unfocus();
+            });
+          }
+          // Priority 3: Clear search if keyboard is already closed
+          else if (_searchQuery.isNotEmpty) {
+            _searchController.clear();
+            _searchNotes('');
+          }
         }
       },
       child: Scaffold(
