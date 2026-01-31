@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android Auto Backup configuration for NoteFlow.
+  
+  This enables automatic backup of app data to user's Google Drive.
+  Restores automatically on reinstall (same Google account).
+  
+  See: https://developer.android.com/guide/topics/data/autobackup
+-->
+<full-backup-content>
+    <!-- Include the SQLite database (notes) -->
+    <include domain="database" path="." />
+    
+    <!-- Include SharedPreferences (local user ID, settings) -->
+    <include domain="sharedpref" path="." />
+    
+    <!-- Include app documents (where SQLite file might be stored) -->
+    <include domain="file" path="." />
+</full-backup-content>

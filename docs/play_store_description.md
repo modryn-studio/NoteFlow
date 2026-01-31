@@ -26,10 +26,11 @@ KEY FEATURES:
 • See what matters now
 • Clean, intuitive interface
 
-🔒 Privacy First
-• Your data stays yours
-• Secure cloud sync across devices
-• Anonymous authentication
+🔒 Privacy First - No Account Required
+• Start instantly - no email, no sign-up, no tracking
+• Your data stays yours with automatic device backup
+• True privacy with anonymous authentication
+• Secure cloud sync when you need it
 
 ✨ Beautiful Design
 • Modern glassmorphism UI

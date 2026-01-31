@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/theme/app_theme.dart';
 import '../models/note_model.dart';
-import '../services/supabase_service.dart';
+import '../services/local_database_service.dart';
 import '../services/tagging_service.dart';
 import '../services/entity_detection_service.dart';
 import '../services/analytics_service.dart';
@@ -196,7 +196,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         // For title-only notes, use title for tagging if content is empty
         final textToTag = content.isNotEmpty ? content : title;
         final tags = _tags.isNotEmpty ? _tags : TaggingService.instance.autoTag(textToTag);
-        final savedNote = await SupabaseService.instance.createNote(
+        final savedNote = await LocalDatabaseService.instance.createNote(
           title.isEmpty ? null : title,
           content,
           tags,
@@ -222,7 +222,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           lastEdited: _hasActualContentChanges ? now : _note!.lastEdited,
           lastAccessed: now,   // Always update accessed time
         );
-        final savedNote = await SupabaseService.instance.updateNote(updatedNote);
+        final savedNote = await LocalDatabaseService.instance.updateNote(updatedNote);
         _note = savedNote;
         _originalTitle = title;
         _originalContent = content;
@@ -283,7 +283,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
         // For title-only notes, use title for tagging if content is empty
         final textToTag = content.isNotEmpty ? content : title;
         final tags = _tags.isNotEmpty ? _tags : TaggingService.instance.autoTag(textToTag);
-        final savedNote = await SupabaseService.instance.createNote(
+        final savedNote = await LocalDatabaseService.instance.createNote(
           title.isEmpty ? null : title,
           content,
           tags,
@@ -329,7 +329,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           lastEdited: _hasActualContentChanges ? now : _note!.lastEdited,
           lastAccessed: now,   // Viewing while editing
         );
-        final savedNote = await SupabaseService.instance.updateNote(updatedNote);
+        final savedNote = await LocalDatabaseService.instance.updateNote(updatedNote);
 
         if (mounted) {
           // Exit edit mode and show confirmation
@@ -507,7 +507,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
     if (confirm == true) {
       try {
-        await SupabaseService.instance.deleteNote(_note!.id);
+        await LocalDatabaseService.instance.deleteNote(_note!.id);
         if (mounted) {
           Navigator.of(context).pop(true);
         }

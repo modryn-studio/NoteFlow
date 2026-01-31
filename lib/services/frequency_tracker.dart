@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/note_model.dart';
-import 'supabase_service.dart';
+import 'local_database_service.dart';
 
 /// Service for tracking note access frequency
 class FrequencyTracker {
@@ -59,8 +59,8 @@ class FrequencyTracker {
       await incrementLocalFrequency(noteId);
 
       try {
-        // Update remote (Supabase) - may fail on network issues
-        final result = await SupabaseService.instance.updateFrequency(noteId);
+        // Update local database (works offline)
+        final result = await LocalDatabaseService.instance.updateFrequency(noteId);
         completer.complete(result);
         return result;
       } catch (e) {

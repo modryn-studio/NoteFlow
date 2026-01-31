@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/analytics_event.dart';
 import '../core/config/supabase_config.dart';
-import 'auth_service.dart';
+import 'local_database_service.dart';
 
 /// Service for tracking tag corrections and other analytics events
 class AnalyticsService {
@@ -44,8 +44,8 @@ class AnalyticsService {
     required List<String> originalTags,
     required List<String> finalTags,
   }) async {
-    final userId = AuthService.instance.currentUserId;
-    if (userId == null) return;
+    // Use local user ID from LocalDatabaseService (no auth required)
+    final userId = LocalDatabaseService.instance.localUserId;
 
     final event = TagCorrectionEvent.create(
       noteId: noteId,

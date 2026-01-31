@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import '../core/theme/app_theme.dart';
 import '../models/note_model.dart';
-import '../services/supabase_service.dart';
+import '../services/local_database_service.dart';
 import '../services/frequency_tracker.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/glass_search_bar.dart';
@@ -216,12 +216,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Perform batch delete
     try {
-      final failedIds = await SupabaseService.instance.batchDeleteNotes(
+      final deletedIds = await LocalDatabaseService.instance.batchDeleteNotes(
         idsToDelete,
         onProgress: (current, total) {
           progressNotifier.value = current;
         },
       );
+      // Calculate failed IDs as those not in deletedIds
+      final failedIds = idsToDelete.where((id) => !deletedIds.contains(id)).toList();
 
       // Close progress dialog
       if (mounted) {
@@ -299,7 +301,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      final notes = await SupabaseService.instance.fetchNotes();
+      final notes = await LocalDatabaseService.instance.fetchNotes();
       _allNotes = notes; // Store original
 
       // Skip grouping if we're going to search immediately after
@@ -359,7 +361,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     try {
-      final results = await SupabaseService.instance.searchNotes(query);
+      final results = await LocalDatabaseService.instance.searchNotes(query);
       setState(() {
         _groupNotes(results);
       });
@@ -446,7 +448,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      await SupabaseService.instance.deleteNote(note.id);
+      await LocalDatabaseService.instance.deleteNote(note.id);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
