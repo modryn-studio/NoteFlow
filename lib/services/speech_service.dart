@@ -12,6 +12,10 @@ class SpeechService {
   final SpeechToText _speech = SpeechToText();
   bool _isInitialized = false;
   bool _isListening = false;
+  bool _shouldKeepListening = false;  // Flag to auto-restart
+  Function(String)? _currentOnResult;
+  String _currentLocaleId = 'en_US';
+  String _accumulatedText = '';  // Accumulate text across sessions
 
   /// Check if speech recognition is available on device
   bool get isAvailable => _isInitialized;
@@ -37,6 +41,17 @@ class SpeechService {
 
   /// Error callback
   void _onError(SpeechRecognitionError error) {
+    // Ignore "no match" errors and restart - this happens during pauses
+    if (error.errorMsg == 'error_no_match' && _shouldKeepListening) {
+      _isListening = false;
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (_shouldKeepListening) {
+          _restartListening();
+        }
+      });
+      return;
+    }
+    
     _isListening = false;
     // Error handling - can be extended with callback
   }
@@ -44,6 +59,15 @@ class SpeechService {
   /// Status callback
   void _onStatus(String status) {
     _isListening = status == 'listening';
+    
+    // Auto-restart when it goes to "done" if we want to keep listening
+    if (status == 'done' && _shouldKeepListening) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (_shouldKeepListening) {
+          _restartListening();
+        }
+      });
+    }
   }
 
   /// Start listening for speech
@@ -65,40 +89,76 @@ class SpeechService {
       await stopListening();
     }
 
+    // Store callbacks for auto-restart
+    _currentOnResult = onResult;
+    _currentLocaleId = localeId;
+    _shouldKeepListening = true;
+    _accumulatedText = '';  // Reset accumulated text for new session
+    
+    await _startListeningInternal();
+  }
+
+  /// Internal method to start/restart listening
+  Future<void> _startListeningInternal() async {
     _isListening = true;
+    String currentSegmentText = '';  // Track current segment
 
     await _speech.listen(
       onResult: (SpeechRecognitionResult result) {
-        onResult(result.recognizedWords);
+        currentSegmentText = result.recognizedWords;
+        
+        // Combine accumulated text with current segment
+        final fullText = _accumulatedText.isEmpty 
+            ? currentSegmentText 
+            : '$_accumulatedText $currentSegmentText';
+        
+        _currentOnResult?.call(fullText);
+        
+        // When segment finalizes, save it to accumulated
         if (result.finalResult) {
-          _isListening = false;
-          onComplete();
+          if (currentSegmentText.isNotEmpty) {
+            _accumulatedText = _accumulatedText.isEmpty
+                ? currentSegmentText
+                : '$_accumulatedText $currentSegmentText';
+          }
         }
       },
-      listenFor: const Duration(seconds: 30),
-      pauseFor: const Duration(seconds: 3),
-      localeId: localeId,
+      listenFor: const Duration(minutes: 10),
+      pauseFor: const Duration(minutes: 10),
+      localeId: _currentLocaleId,
+      onSoundLevelChange: null,
       listenOptions: SpeechListenOptions(
-        cancelOnError: true,
+        cancelOnError: false,
         partialResults: true,
       ),
     );
   }
 
+  /// Restart listening (called automatically after "done" status)
+  Future<void> _restartListening() async {
+    if (_shouldKeepListening && !_isListening) {
+      await _startListeningInternal();
+    }
+  }
+
   /// Stop listening
   Future<void> stopListening() async {
+    _shouldKeepListening = false;  // Prevent auto-restart
     if (_isListening) {
       await _speech.stop();
       _isListening = false;
     }
+    _accumulatedText = '';  // Clear accumulated text
   }
 
   /// Cancel listening
   Future<void> cancelListening() async {
+    _shouldKeepListening = false;  // Prevent auto-restart
     if (_isListening) {
       await _speech.cancel();
       _isListening = false;
     }
+    _accumulatedText = '';  // Clear accumulated text
   }
 
   /// Get available locales

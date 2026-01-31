@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
   // Primary Backgrounds
@@ -42,45 +43,37 @@ class AppColors {
 }
 
 class AppTypography {
-  static const String fontFamily = 'Inter';
-
-  static const TextStyle heading = TextStyle(
-    fontFamily: fontFamily,
+  static TextStyle heading = GoogleFonts.inter(
     fontWeight: FontWeight.w600,
     fontSize: 22,
     color: AppColors.pearlWhite,
   );
 
-  static const TextStyle headingSmall = TextStyle(
-    fontFamily: fontFamily,
+  static TextStyle headingSmall = GoogleFonts.inter(
     fontWeight: FontWeight.w600,
     fontSize: 18,
     color: AppColors.pearlWhite,
   );
 
-  static const TextStyle body = TextStyle(
-    fontFamily: fontFamily,
+  static TextStyle body = GoogleFonts.inter(
     fontWeight: FontWeight.w400,
     fontSize: 16,
     color: AppColors.pearlWhite,
   );
 
-  static const TextStyle bodyLarge = TextStyle(
-    fontFamily: fontFamily,
+  static TextStyle bodyLarge = GoogleFonts.inter(
     fontWeight: FontWeight.w400,
     fontSize: 18,
     color: AppColors.pearlWhite,
   );
 
-  static const TextStyle caption = TextStyle(
-    fontFamily: fontFamily,
+  static TextStyle caption = GoogleFonts.inter(
     fontWeight: FontWeight.w300,
     fontSize: 14,
     color: AppColors.subtleGray,
   );
 
-  static const TextStyle tag = TextStyle(
-    fontFamily: fontFamily,
+  static TextStyle tag = GoogleFonts.inter(
     fontWeight: FontWeight.w500,
     fontSize: 12,
     color: AppColors.softLavender,
@@ -105,15 +98,20 @@ class AppTheme {
           surface: AppColors.darkPurple,
           error: AppColors.warmGlow,
         ),
-        fontFamily: AppTypography.fontFamily,
-        textTheme: const TextTheme(
+        textTheme: GoogleFonts.interTextTheme(const TextTheme(
+          headlineLarge: TextStyle(),
+          headlineMedium: TextStyle(),
+          bodyLarge: TextStyle(),
+          bodyMedium: TextStyle(),
+          bodySmall: TextStyle(),
+        )).copyWith(
           headlineLarge: AppTypography.heading,
           headlineMedium: AppTypography.headingSmall,
           bodyLarge: AppTypography.bodyLarge,
           bodyMedium: AppTypography.body,
           bodySmall: AppTypography.caption,
         ),
-        appBarTheme: const AppBarTheme(
+        appBarTheme: AppBarTheme(
           backgroundColor: Colors.transparent,
           elevation: 0,
           titleTextStyle: AppTypography.heading,

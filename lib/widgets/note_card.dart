@@ -4,7 +4,7 @@ import '../models/note_model.dart';
 import 'glass_card.dart';
 
 /// Note card widget with glassmorphic design
-class NoteCard extends StatelessWidget {
+class NoteCard extends StatefulWidget {
   final NoteModel note;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
@@ -24,11 +24,20 @@ class NoteCard extends StatelessWidget {
     this.onSelectionToggle,
   });
 
+  @override
+  State<NoteCard> createState() => _NoteCardState();
+}
+
+class _NoteCardState extends State<NoteCard> {
+  bool _isDismissible = true;
+  double? _startX;
+  double? _startY;
+
   /// Get formatted time ago string
   /// Get formatted time ago string for last edited
   String get _editedTimeAgo {
     final now = DateTime.now().toLocal();
-    final lastEditedLocal = note.lastEdited.toLocal();
+    final lastEditedLocal = widget.note.lastEdited.toLocal();
     final difference = now.difference(lastEditedLocal);
 
     if (difference.inMinutes < 1) {
@@ -48,22 +57,57 @@ class NoteCard extends StatelessWidget {
 
   /// Get preview text (first 100 characters)
   String get _previewText {
-    if (note.content.length <= 100) {
-      return note.content;
+    if (widget.note.content.length <= 100) {
+      return widget.note.content;
     }
-    return '${note.content.substring(0, 100)}...';
+    return '${widget.note.content.substring(0, 100)}...';
   }
 
   @override
   Widget build(BuildContext context) {
     // In selection mode, show a row with checkbox
-    if (isSelectionMode) {
+    if (widget.isSelectionMode) {
       return _buildSelectionCard();
     }
     
+    return GestureDetector(
+      onHorizontalDragStart: (details) {
+        _startX = details.globalPosition.dx;
+        _startY = details.globalPosition.dy;
+        setState(() => _isDismissible = false);
+      },
+      onHorizontalDragUpdate: (details) {
+        if (_startX != null && _startY != null) {
+          final dx = (_startX! - details.globalPosition.dx).abs();
+          final dy = (_startY! - details.globalPosition.dy).abs();
+          
+          // Only enable dismissible if swipe is mostly horizontal
+          // Require 3x more horizontal movement than vertical
+          if (dx > 30 && dx > dy * 3) {
+            setState(() => _isDismissible = true);
+          }
+        }
+      },
+      onHorizontalDragEnd: (details) {
+        _startX = null;
+        _startY = null;
+        // Reset after a short delay to allow dismissible to complete
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted) setState(() => _isDismissible = false);
+        });
+      },
+      child: _isDismissible ? _buildDismissibleCard() : _buildStaticCard(),
+    );
+  }
+
+  Widget _buildDismissibleCard() {
     return Dismissible(
-      key: Key(note.id),
+      key: Key(widget.note.id),
       direction: DismissDirection.endToStart,
+      dismissThresholds: const {
+        DismissDirection.endToStart: 0.7, // Must swipe 70% of width
+      },
+      movementDuration: const Duration(milliseconds: 300),
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 24),
@@ -85,7 +129,7 @@ class NoteCard extends StatelessWidget {
             backgroundColor: AppColors.darkPurple,
             title: Text(
               'Delete Note',
-              style: AppTypography.heading,
+              style: AppTypography.headingSmall,
             ),
             content: Text(
               'Are you sure you want to delete this note?',
@@ -114,70 +158,78 @@ class NoteCard extends StatelessWidget {
           ),
         );
       },
-      onDismissed: (direction) => onDelete?.call(),
-      child: AnimatedGlassCard(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        child: Stack(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Title with emoji prefix
-                Padding(
-                  padding: const EdgeInsets.only(right: 60), // Space for badge
-                  child: Text(
-                    note.displayTitleWithEmoji,
-                    style: AppTypography.headingSmall.copyWith(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(height: 8),
+      onDismissed: (direction) => widget.onDelete?.call(),
+      child: _buildCardContent(),
+    );
+  }
 
-                // Bottom row with dual timestamps
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Left: Last edited (primary info)
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.edit_outlined,
-                          size: 14,
-                          color: AppColors.subtleGray,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _editedTimeAgo,
-                          style: AppTypography.caption,
-                        ),
-                      ],
-                    ),
-                    // Right: View count only (no last viewed time)
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.visibility_outlined,
-                          size: 14,
-                          color: AppColors.subtleGray,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${note.frequencyCount}',
-                          style: AppTypography.caption,
-                        ),
-                      ],
-                    ),
-                  ],
+  Widget _buildStaticCard() {
+    return _buildCardContent();
+  }
+
+  Widget _buildCardContent() {
+    return AnimatedGlassCard(
+      onTap: widget.onTap,
+      onLongPress: widget.onLongPress,
+      child: Stack(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Title
+              Padding(
+                padding: const EdgeInsets.only(right: 60), // Space for badge
+                child: Text(
+                  widget.note.displayTitle,
+                  style: AppTypography.headingSmall.copyWith(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            ),
-          ],
-        ),
+              ),
+              const SizedBox(height: 8),
+
+              // Bottom row with dual timestamps
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Left: Last edited (primary info)
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.edit_outlined,
+                        size: 14,
+                        color: AppColors.subtleGray,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _editedTimeAgo,
+                        style: AppTypography.caption,
+                      ),
+                    ],
+                  ),
+                  // Right: View count only (no last viewed time)
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.visibility_outlined,
+                        size: 14,
+                        color: AppColors.subtleGray,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${widget.note.frequencyCount}',
+                        style: AppTypography.caption,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -185,7 +237,7 @@ class NoteCard extends StatelessWidget {
   /// Build card with checkbox for selection mode
   Widget _buildSelectionCard() {
     return GestureDetector(
-      onTap: onSelectionToggle,
+      onTap: widget.onSelectionToggle,
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         child: Row(
@@ -198,17 +250,17 @@ class NoteCard extends StatelessWidget {
               margin: const EdgeInsets.only(right: 12),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isSelected 
+                color: widget.isSelected 
                     ? AppColors.softLavender 
                     : Colors.transparent,
                 border: Border.all(
-                  color: isSelected 
+                  color: widget.isSelected 
                       ? AppColors.softLavender 
                       : AppColors.subtleGray,
                   width: 2,
                 ),
               ),
-              child: isSelected
+              child: widget.isSelected
                   ? const Icon(
                       Icons.check_rounded,
                       color: AppColors.deepIndigo,
@@ -219,13 +271,13 @@ class NoteCard extends StatelessWidget {
             // Note card content
             Expanded(
               child: AnimatedGlassCard(
-                onTap: onSelectionToggle,
+                onTap: widget.onSelectionToggle,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Title with emoji prefix
+                    // Title
                     Text(
-                      note.displayTitleWithEmoji,
+                      widget.note.displayTitle,
                       style: AppTypography.headingSmall.copyWith(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,

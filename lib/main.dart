@@ -13,10 +13,14 @@ import 'screens/home_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Set preferred orientations
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
+  // Critical path only - parallel initialization of essential services
+  await Future.wait([
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]),
+    dotenv.load(fileName: '.env'),
+    LocalStorageService.instance.initialize(), // Need this for cached notes
   ]);
 
   // Set system UI overlay style for dark theme
@@ -29,25 +33,29 @@ void main() async {
     ),
   );
 
-  // Load environment variables
-  await dotenv.load(fileName: '.env');
-
-  // Initialize local storage service (also initializes Hive)
-  await LocalStorageService.instance.initialize();
-
-  // Initialize frequency tracker
-  await FrequencyTracker.instance.initialize();
-
-  // Initialize analytics service
-  await AnalyticsService.instance.initialize();
-
-  // Initialize Supabase
-  await SupabaseConfig.initialize();
-
-  // Ensure user is authenticated
-  await AuthService.instance.ensureAuthenticated();
-
+  // Launch app immediately with cached data
   runApp(const NoteFlowApp());
+
+  // Initialize remaining services in background
+  _initializeBackgroundServices();
+}
+
+/// Initialize non-critical services in background after app launches
+Future<void> _initializeBackgroundServices() async {
+  try {
+    // Run independent services in parallel
+    await Future.wait([
+      FrequencyTracker.instance.initialize(),
+      AnalyticsService.instance.initialize(),
+      SupabaseConfig.initialize(),
+    ]);
+
+    // Authenticate user (requires Supabase to be initialized first)
+    await AuthService.instance.ensureAuthenticated();
+  } catch (e) {
+    // Log error but don't block app - offline mode will work
+    debugPrint('Background initialization error: $e');
+  }
 }
 
 class NoteFlowApp extends StatefulWidget {

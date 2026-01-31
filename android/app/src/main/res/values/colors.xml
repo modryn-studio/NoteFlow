@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Dark purple background matching app theme -->
+    <!-- Deep purple background matching app theme -->
+    <color name="splash_background">#1a1625</color>
     <color name="launch_background_color">#0f0f1e</color>
 </resources>

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -11,6 +12,10 @@ class SupabaseConfigException implements Exception {
 }
 
 class SupabaseConfig {
+  static bool _isInitialized = false;
+  
+  static bool get isInitialized => _isInitialized;
+  
   static String get supabaseUrl {
     // Check for dart-define override first (for environment switching)
     const envUrl = String.fromEnvironment('SUPABASE_URL');
@@ -51,14 +56,17 @@ class SupabaseConfig {
   }
 
   static Future<void> initialize() async {
+    if (_isInitialized) return; // Already initialized
+    
     // Validate config before initializing
     final url = supabaseUrl;
     final key = supabaseKey;
 
-    print('🔧 Initializing Supabase in ${environment.toUpperCase()} environment');
-    print('🔗 URL: $url');
+    debugPrint('🔧 Initializing Supabase in ${environment.toUpperCase()} environment');
+    debugPrint('🔗 URL: $url');
 
     await Supabase.initialize(url: url, anonKey: key);
+    _isInitialized = true;
   }
 
   static SupabaseClient get client => Supabase.instance.client;

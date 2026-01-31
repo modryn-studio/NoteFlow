@@ -19,13 +19,19 @@ class FrequencyTracker {
 
   /// Get local frequency count for a note
   int getLocalFrequency(String noteId) {
-    return _box?.get(noteId) ?? 0;
+    if (_box == null) {
+      throw StateError('FrequencyTracker not initialized. Call initialize() first.');
+    }
+    return _box!.get(noteId) ?? 0;
   }
 
   /// Increment local frequency count
   Future<void> incrementLocalFrequency(String noteId) async {
+    if (_box == null) {
+      throw StateError('FrequencyTracker not initialized. Call initialize() first.');
+    }
     final current = getLocalFrequency(noteId);
-    await _box?.put(noteId, current + 1);
+    await _box!.put(noteId, current + 1);
   }
 
   /// Track note open - updates both local and remote
@@ -43,7 +49,9 @@ class FrequencyTracker {
       return await SupabaseService.instance.updateFrequency(noteId);
     } catch (e) {
       // Rollback local increment to maintain consistency
-      await _box?.put(noteId, previousCount);
+      if (_box != null) {
+        await _box!.put(noteId, previousCount);
+      }
       rethrow;
     }
   }

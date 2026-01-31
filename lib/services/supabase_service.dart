@@ -138,6 +138,17 @@ class SupabaseService {
       return cachedNotes;
     }
     
+    // If Supabase not initialized yet, return cached notes (or empty list)
+    if (!SupabaseConfig.isInitialized) {
+      // Schedule sync for when Supabase is ready
+      Future.delayed(Duration(milliseconds: 100), () {
+        if (SupabaseConfig.isInitialized) {
+          _syncNotesInBackground();
+        }
+      });
+      return cachedNotes; // Return cache or empty list
+    }
+    
     // If no cache or forcing refresh, try to fetch from Supabase
     try {
       final notes = await _withRetry(() async {
